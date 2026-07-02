@@ -6,6 +6,7 @@ import PipelineEditor from './components/PipelineEditor'
 import { useImagesStore } from './stores/images'
 import { usePipelineStore } from './stores/pipeline'
 import { useQueueStore } from './stores/processing-queue'
+import { useSettingsStore } from './stores/settings'
 import { syncEngine } from './stores/sync-engine'
 
 /**
@@ -53,12 +54,19 @@ function useHydrationGate() {
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center text-white"
+      style={{ backgroundColor: 'var(--bg-main)' }}
+    >
       <div
-        className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"
+        className="w-8 h-8 border-2 rounded-full animate-spin mb-4"
+        style={{
+          borderColor: 'var(--brand-primary)',
+          borderTopColor: 'transparent',
+        }}
         role="status"
       />
-      <p className="text-gray-400 text-sm">Restoring session…</p>
+      <p style={{ color: 'var(--text-muted)' }} className="text-sm">Restoring session…</p>
     </div>
   )
 }
@@ -84,6 +92,18 @@ function App() {
     }
   }, [ready, connectWebSocket, disconnectWebSocket])
 
+  // Sync persisted settings to the backend after hydration
+  const syncToBackend = useSettingsStore((s) => s.syncToBackend)
+  const checkBackendStatus = useSettingsStore((s) => s.checkBackendStatus)
+  useEffect(() => {
+    if (ready) {
+      syncToBackend()
+    } else {
+      // Even before hydration, check if the backend has a token
+      checkBackendStatus()
+    }
+  }, [ready, syncToBackend, checkBackendStatus])
+
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files
     if (!files?.length) return
@@ -104,38 +124,69 @@ function App() {
   const hasActiveJobs = totalJobs > 0
 
   return (
-    <div className="min-h-screen flex bg-gray-900 text-white">
+    <div
+      className="min-h-screen flex text-white"
+      style={{ backgroundColor: 'var(--bg-main)' }}
+    >
       <PipelineEditor />
 
       {/* ── Image area with processing bar at the bottom ──────────── */}
       <div className="flex-1 flex flex-col min-h-screen">
-        <div className="flex-1 flex flex-col gap-10 p-6 overflow-y-auto">
+        <div className="flex-1 flex flex-col gap-6 p-6 overflow-y-auto">
           <FileInput onChange={handleFileChange} />
           <MiniatureList />
         </div>
 
         {/* ── Global processing bar (sticky bottom inside container) ─ */}
         {hasActiveJobs && (
-          <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700/50 px-6 py-3">
+          <div
+            className="sticky bottom-0 px-6 py-3"
+            style={{
+              backgroundColor: 'var(--bg-main)',
+              borderTop: '1px solid var(--border-subtle)',
+            }}
+          >
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 shrink-0">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-                <span className="text-sm text-gray-300 font-medium whitespace-nowrap">
+                <div
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                />
+                <span
+                  className="whitespace-nowrap"
+                  style={{
+                    color: 'var(--text-muted)',
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '0.9rem',
+                  }}
+                >
                   {t('queue.globalProgress')}
                 </span>
               </div>
 
-              <div className="flex-1 bg-gray-700 rounded-full h-3 overflow-hidden">
+              <div className="flex-1 rounded-full h-3 overflow-hidden"
+                style={{ backgroundColor: 'rgba(199, 211, 191, 0.1)' }}>
                 <div
-                  className="bg-gradient-to-r from-blue-500 to-blue-400 h-full rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${globalProgress}%` }}
+                  className="h-full rounded-full transition-all duration-500 ease-out"
+                  style={{
+                    width: `${globalProgress}%`,
+                    background: 'linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
+                    boxShadow: '0 0 8px rgba(102,44,145,0.4), 0 0 16px rgba(242,95,92,0.2)',
+                  }}
                 />
               </div>
 
-              <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">
+              <span
+                className="text-xs whitespace-nowrap shrink-0"
+                style={{
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-ui)',
+                  fontWeight: 700,
+                }}
+              >
                 {completedJobs}/{totalJobs}
                 {stats.totalFailed > 0 && (
-                  <span className="text-red-400 ml-1">
+                  <span className="ml-1" style={{ color: 'var(--brand-accent)' }}>
                     ({stats.totalFailed} {t('queue.failed').toLowerCase()})
                   </span>
                 )}

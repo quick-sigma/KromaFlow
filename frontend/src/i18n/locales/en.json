@@ -10,6 +10,8 @@
     "processAll": "Process All",
     "processing": "Processing…",
     "download": "Download",
+    "downloadAll": "Download All",
+    "downloading": "Downloading…",
     "processDisabledTooltip": "Add an output step to your pipeline before processing images"
   },
   "imageExplorer": {
@@ -54,15 +56,36 @@
     "noOptions": "This step has no configurable options.",
     "cancel": "Cancel",
     "save": "Save",
-    "close": "Close"
+    "close": "Close",
+    "fields": {
+      "real_esrgan": {
+        "scale": {
+          "title": "Scale",
+          "description": "Upscaling factor (2×, 3×, or 4×). The model natively upscales 4×; lower values apply a post-resize."
+        },
+        "denoise_enabled": {
+          "title": "Denoise",
+          "description": "Apply denoising to reduce noise and compression artifacts. May soften fine details."
+        }
+      }
+    }
   },
-  "savePipelineDialog": {
-    "title": "Save Pipeline",
-    "nameLabel": "Pipeline Name",
-    "namePlaceholder": "Enter pipeline name…",
+  "settingsDialog": {
+    "title": "Settings",
+    "close": "Close",
+    "hfTokenLabel": "Hugging Face Token",
+    "hfTokenPlaceholder": "Enter your Hugging Face token (hf_...)",
+    "hfTokenInvalidHint": "Tokens typically start with 'hf_'",
+    "hfTokenInfo": "Configuring a token enables faster downloads from Hugging Face and allows access to gated models (like BRIA RMBG-1.4). Your token is stored locally and sent securely to the backend for model downloads only.",
+    "showToken": "Show token",
+    "hideToken": "Hide token",
+    "tokenConfigured": "Token configured",
+    "tokenNotConfigured": "No token configured",
     "save": "Save",
     "cancel": "Cancel",
-    "close": "Close"
+    "clear": "Clear Token",
+    "syncing": "Syncing to backend…",
+    "saved": "Settings saved"
   },
   "queue": {
     "enqueued": "Enqueued",

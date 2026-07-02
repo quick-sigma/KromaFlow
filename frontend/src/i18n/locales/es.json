@@ -10,6 +10,8 @@
     "processAll": "Procesar Todo",
     "processing": "Procesando…",
     "download": "Descargar",
+    "downloadAll": "Descargar Todo",
+    "downloading": "Descargando…",
     "processDisabledTooltip": "Añade un paso de salida a tu pipeline antes de procesar imágenes"
   },
   "imageExplorer": {
@@ -54,15 +56,36 @@
     "noOptions": "Este paso no tiene opciones configurables.",
     "cancel": "Cancelar",
     "save": "Guardar",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "fields": {
+      "real_esrgan": {
+        "scale": {
+          "title": "Escala",
+          "description": "Factor de ampliación (2×, 3× o 4×). El modelo amplía 4× de forma nativa; valores menores aplican un reajuste posterior."
+        },
+        "denoise_enabled": {
+          "title": "Reducción de Ruido",
+          "description": "Aplica reducción de ruido para disminuir artefactos de compresión. Puede suavizar detalles finos."
+        }
+      }
+    }
   },
-  "savePipelineDialog": {
-    "title": "Guardar Pipeline",
-    "nameLabel": "Nombre del Pipeline",
-    "namePlaceholder": "Ingresa el nombre del pipeline…",
+  "settingsDialog": {
+    "title": "Configuración",
+    "close": "Cerrar",
+    "hfTokenLabel": "Token de Hugging Face",
+    "hfTokenPlaceholder": "Ingresa tu token de Hugging Face (hf_...)",
+    "hfTokenInvalidHint": "Los tokens generalmente comienzan con 'hf_'",
+    "hfTokenInfo": "Configurar un token permite descargas más rápidas desde Hugging Face y acceso a modelos restringidos (como BRIA RMBG-1.4). Tu token se almacena localmente y se envía de forma segura al backend solo para descargas de modelos.",
+    "showToken": "Mostrar token",
+    "hideToken": "Ocultar token",
+    "tokenConfigured": "Token configurado",
+    "tokenNotConfigured": "Sin token configurado",
     "save": "Guardar",
     "cancel": "Cancelar",
-    "close": "Cerrar"
+    "clear": "Limpiar Token",
+    "syncing": "Sincronizando con el backend…",
+    "saved": "Configuración guardada"
   },
   "queue": {
     "enqueued": "En Cola",

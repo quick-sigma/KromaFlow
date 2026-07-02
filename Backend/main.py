@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -20,17 +21,20 @@ from PIL import Image
 # Import steps_config to trigger @register decorators so the step registry
 # is populated before any request reaches the /api/steps endpoint.
 import steps_config  # noqa: F401  # register side-effect
+from model_manager import ModelManager
+from settings import Settings
 from step import Pipeline, get_registered_steps, _step_id_map
 
 logger = logging.getLogger(__name__)
 
-# ── Lifespan ──────────────────────────────────────────────────────────────────
+# ── Lifespan ────────────────────────────────────────────────────────────────
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Configure the queue manager on startup."""
+    """Configure the queue manager and start the model idle-unloader on startup."""
     _configure_queue_manager()
+    _start_model_idle_monitor()
     yield
 
 
@@ -96,6 +100,69 @@ def _configure_queue_manager():
         return result_id, display_name
 
     qm.set_result_callback(store_result)
+
+
+# ── Model idle-unloader background task ─────────────────────────────────────
+
+
+def _start_model_idle_monitor() -> None:
+    """Start a background asyncio task that unloads idle models every 60 s."""
+    async def _monitor() -> None:
+        mgr = ModelManager.get_instance()
+        while True:
+            try:
+                count = mgr.unload_idle_models()
+                if count:
+                    logger.info("Unloaded %d idle model(s) from RAM", count)
+            except Exception:
+                logger.exception("Error unloading idle models")
+            await asyncio.sleep(60.0)
+
+    asyncio.create_task(_monitor())
+    logger.debug("Model idle-unloader background task started (interval=60s)")
+
+
+# ── Settings endpoints ──────────────────────────────────────────────────────
+
+
+@app.get("/api/settings")
+def get_settings():
+    """Return current runtime settings (without exposing sensitive values).
+
+    The frontend uses this to check whether a Hugging Face token has been
+    configured, e.g. after a page refresh.
+    """
+    s = Settings.get_instance()
+    return {
+        "hfTokenConfigured": s.has_hf_token,
+    }
+
+
+@app.post("/api/settings/hf-token")
+def set_hf_token(body: dict):
+    """Store a Hugging Face token for use during model downloads.
+
+    The token is held in memory only.  The frontend should re-send it on
+    app startup if it was persisted locally.
+
+    Request body::
+
+        {"token": "hf_..."}
+
+    To clear the token send an empty string or omit the field.
+    """
+    token = body.get("token", "") if isinstance(body, dict) else ""
+    s = Settings.get_instance()
+    s.hf_token = token if token else None
+    return {"status": "ok", "hfTokenConfigured": s.has_hf_token}
+
+
+@app.delete("/api/settings/hf-token")
+def clear_hf_token():
+    """Clear the stored Hugging Face token."""
+    s = Settings.get_instance()
+    s.hf_token = None
+    return {"status": "ok", "hfTokenConfigured": False}
 
 
 # ── WebSocket endpoint ──────────────────────────────────────────────────────

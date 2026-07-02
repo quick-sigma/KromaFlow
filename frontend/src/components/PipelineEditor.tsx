@@ -15,10 +15,11 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FiChevronDown, FiPlus, FiGlobe } from 'react-icons/fi'
+import { FiChevronDown, FiPlus, FiGlobe, FiSettings } from 'react-icons/fi'
 import Button from './Button'
 import StepSearch from './StepSearch'
 import StepConfigDialog from './StepConfigDialog'
+import SettingsDialog from './SettingsDialog'
 import SavePipelineDialog from './SavePipelineDialog'
 import PipelineFlowGraph from './PipelineFlowGraph'
 import { usePipelineStore } from '../stores/pipeline'
@@ -132,6 +133,7 @@ export default function PipelineEditor() {
   const [savedPipelines, setSavedPipelines] = useState<SavedPipeline[]>([])
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isSaveModalOpen, setSaveModalOpen] = useState(false)
+  const [isSettingsOpen, setSettingsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Load saved pipelines from localStorage on mount
@@ -181,7 +183,17 @@ export default function PipelineEditor() {
         return prev
       }
 
+      // Block: only one base node allowed
+      if (step.is_base_node && prev.some((ps) => ps.step.is_base_node)) {
+        return prev
+      }
+
       const entry: PipelineStep = { step, config: defaultConfig }
+
+      // Base node → always goes at position 0
+      if (step.is_base_node) {
+        return [entry, ...prev]
+      }
 
       // Output formatter → always goes at the end
       if (step.variant === 'output_formatter') {
@@ -206,6 +218,52 @@ export default function PipelineEditor() {
   // ── Delete step ────────────────────────────────────────────────────
   function handleDelete(index: number) {
     setPipelineSteps((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // ── Reorder (drag & drop) ──────────────────────────────────────────
+  /**
+   * Called by PipelineFlowGraph → Reorder.Group when the user drops a
+   * dragged node.  The `reordered` array reflects the new order from
+   * Framer Motion.
+   *
+   * We enforce architectural constraints:
+   * 1. The base node (is_base_node) stays at position 0.
+   * 2. The output formatter stays at the last position.
+   * 3. Processor nodes are placed in the order the user chose.
+   */
+  function handleReorder(reordered: PipelineStep[]) {
+    setPipelineSteps((prev) => {
+      // Preserve stable references for non-configuration changes
+      const prevMap = new Map(prev.map((ps) => [ps.step.id, ps]))
+
+      // Identify the fixed-position nodes
+      const baseNode = reordered.find((ps) => ps.step.is_base_node)
+      const outputNode = reordered.find(
+        (ps) => ps.step.variant === 'output_formatter',
+      )
+
+      // Extract processor order from the user's drag result
+      const processorOrder = reordered
+        .filter(
+          (ps) =>
+            !ps.step.is_base_node &&
+            ps.step.variant !== 'output_formatter',
+        )
+        .map((ps) => ps.step.id)
+
+      // Rebuild using stable object references from previous state
+      const processors = processorOrder
+        .map((id) => prevMap.get(id))
+        .filter((ps): ps is PipelineStep => ps !== undefined)
+
+      // Assemble constrained pipeline
+      const constrained: PipelineStep[] = []
+      if (baseNode) constrained.push(baseNode)
+      constrained.push(...processors)
+      if (outputNode) constrained.push(outputNode)
+
+      return constrained
+    })
   }
 
   // ── Configure step ─────────────────────────────────────────────────
@@ -306,7 +364,7 @@ export default function PipelineEditor() {
 
   return (
     <div
-      className="w-80 shrink-0 flex flex-col max-h-screen"
+      className="w-80 shrink-0 flex flex-col max-h-screen overflow-x-hidden"
       style={{
         backgroundColor: 'var(--bg-main)',
         borderRight: '1px solid var(--border-subtle)',
@@ -323,21 +381,36 @@ export default function PipelineEditor() {
           }}>
           {t('pipelineEditor.header')}
         </h2>
-        <button
-          type="button"
-          onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'es' : 'en')}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors cursor-pointer text-xs"
-          style={{
-            color: 'var(--text-muted)',
-            fontFamily: 'var(--font-ui)',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
-          aria-label="Switch language"
-        >
-          <FiGlobe className="w-3.5 h-3.5" />
-          <span>{i18n.language === 'en' ? 'EN' : 'ES'}</span>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="flex items-center justify-center p-1.5 rounded-lg transition-colors cursor-pointer"
+            style={{
+              color: 'var(--text-muted)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+            aria-label={t('settingsDialog.title')}
+          >
+            <FiSettings className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'es' : 'en')}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors cursor-pointer text-xs"
+            style={{
+              color: 'var(--text-muted)',
+              fontFamily: 'var(--font-ui)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+            aria-label="Switch language"
+          >
+            <FiGlobe className="w-3.5 h-3.5" />
+            <span>{i18n.language === 'en' ? 'EN' : 'ES'}</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Pipeline dropdown ─────────────────────────────────────── */}
@@ -445,6 +518,7 @@ export default function PipelineEditor() {
           steps={pipelineSteps}
           onDelete={handleDelete}
           onConfigure={handleOpenConfig}
+          onReorder={handleReorder}
         />
       </div>
 
@@ -572,6 +646,11 @@ export default function PipelineEditor() {
           onSave={handleSavePipelineConfirm}
           onClose={() => setSaveModalOpen(false)}
         />
+      )}
+
+      {/* ── Settings dialog ────────────────────────────────────────── */}
+      {isSettingsOpen && (
+        <SettingsDialog onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   )
