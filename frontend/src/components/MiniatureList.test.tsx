@@ -271,6 +271,67 @@ describe('MiniatureList', () => {
     ).not.toBeInTheDocument()
   })
 
+  // ── Download button on processed cards ────────────────────────────
+
+  it('shows a Download button on processed image cards', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'result.png',
+          src: 'blob:http://localhost/p1',
+          name: 'result-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+    render(<MiniatureList />)
+
+    expect(
+      screen.getByRole('button', { name: 'Download' }),
+    ).toBeInTheDocument()
+  })
+
+  it('includes Download and Remove buttons on each processed card', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'a.png',
+          src: 'blob:http://localhost/p1',
+          name: 'a-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+        {
+          id: 'p2',
+          originalId: 'orig2',
+          originalName: 'b.png',
+          src: 'blob:http://localhost/p2',
+          name: 'b-processed.png',
+          type: 'image/png',
+          size: 200,
+          blobKey: 'processed-blob-p2',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+    render(<MiniatureList />)
+
+    const downloadBtns = screen.getAllByRole('button', { name: 'Download' })
+    expect(downloadBtns).toHaveLength(2)
+
+    const removeBtns = screen.getAllByRole('button', { name: 'Remove' })
+    expect(removeBtns).toHaveLength(2)
+  })
+
   it('clears all processed images when the Processed trash icon is clicked', async () => {
     const user = userEvent.setup()
     useImagesStore.setState({

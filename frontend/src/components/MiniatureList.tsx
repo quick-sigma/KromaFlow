@@ -190,8 +190,8 @@ export default function MiniatureList() {
 }
 
 /**
- * A compact card for a processed image — no Process button,
- * just a thumbnail, name, and Remove button.
+ * A compact card for a processed image — thumbnail, name,
+ * Download, and Remove buttons.
  */
 function ProcessedImageCard({
   entry,
@@ -204,8 +204,17 @@ function ProcessedImageCard({
 }) {
   const { t } = useTranslation()
 
+  function handleDownload() {
+    const a = document.createElement('a')
+    a.href = entry.src
+    a.download = entry.name
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-3">
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events,
           jsx-a11y/no-static-element-interactions */}
       <Miniature
@@ -224,9 +233,14 @@ function ProcessedImageCard({
       <span className="text-xs text-gray-400 truncate max-w-[12rem] text-center">
         {entry.name}
       </span>
-      <Button variant="danger" onClick={onRemove}>
-        {t('miniatureOptions.remove')}
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="primary" onClick={handleDownload}>
+          {t('miniatureOptions.download')}
+        </Button>
+        <Button variant="danger" onClick={onRemove}>
+          {t('miniatureOptions.remove')}
+        </Button>
+      </div>
     </div>
   )
 }

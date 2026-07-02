@@ -9,6 +9,7 @@
     "process": "Process",
     "processAll": "Process All",
     "processing": "Processing…",
+    "download": "Download",
     "processDisabledTooltip": "Add an output step to your pipeline before processing images"
   },
   "imageExplorer": {
