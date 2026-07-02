@@ -8,5 +8,32 @@
   },
   "miniatureList": {
     "noImages": "No images loaded"
+  },
+  "pipelineEditor": {
+    "header": "Pipeline Editor",
+    "emptyState": "No steps yet. Click the button below to add one.",
+    "addStep": "Add New Step",
+    "save": "Save Pipeline",
+    "loadPipeline": "Load Pipeline…",
+    "noSavedPipelines": "No saved pipelines yet.",
+    "pipelineSaved": "Pipeline saved successfully",
+    "confirmDelete": "Are you sure you want to delete \"{{name}}\"?",
+    "untitledPipeline": "Untitled Pipeline"
+  },
+  "stepSearch": {
+    "placeholder": "Search steps…",
+    "processors": "Processors",
+    "outputFormatters": "Output Formatters",
+    "noSteps": "No steps available.",
+    "typeToSearch": "Type to search steps…",
+    "noMatch": "No steps match \"{{query}}\"",
+    "exclusionNotice": "Some steps are hidden because they are already in the pipeline."
+  },
+  "stepConfig": {
+    "configure": "Configure {{name}}",
+    "noOptions": "This step has no configurable options.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "close": "Close"
   }
 }

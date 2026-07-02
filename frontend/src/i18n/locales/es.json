@@ -8,5 +8,32 @@
   },
   "miniatureList": {
     "noImages": "No hay imágenes cargadas"
+  },
+  "pipelineEditor": {
+    "header": "Editor de Pipeline",
+    "emptyState": "Aún no hay pasos. Haz clic en el botón para agregar uno.",
+    "addStep": "Agregar Paso",
+    "save": "Guardar Pipeline",
+    "loadPipeline": "Cargar Pipeline…",
+    "noSavedPipelines": "No hay pipelines guardados aún.",
+    "pipelineSaved": "Pipeline guardado exitosamente",
+    "confirmDelete": "¿Estás seguro de eliminar \"{{name}}\"?",
+    "untitledPipeline": "Pipeline sin título"
+  },
+  "stepSearch": {
+    "placeholder": "Buscar pasos…",
+    "processors": "Procesadores",
+    "outputFormatters": "Formateadores de Salida",
+    "noSteps": "No hay pasos disponibles.",
+    "typeToSearch": "Escribe para buscar pasos…",
+    "noMatch": "Ningún paso coincide con \"{{query}}\"",
+    "exclusionNotice": "Algunos pasos están ocultos porque ya están en el pipeline."
+  },
+  "stepConfig": {
+    "configure": "Configurar {{name}}",
+    "noOptions": "Este paso no tiene opciones configurables.",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "close": "Cerrar"
   }
 }
