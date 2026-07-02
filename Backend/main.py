@@ -17,6 +17,11 @@ from output_formatter import ImageOutputFormatter
 from avif_output_formatter import AVIFOutputFormatter
 from processor import ImageProcessor, process_order
 
+# Import steps_config to trigger @register decorators so the step registry
+# is populated before any request reaches the /api/steps endpoint.
+import steps_config  # noqa: F401  # register side-effect
+from step import get_registered_steps
+
 # Watermark remover is imported lazily (optional dependency).
 # If the import fails, watermark removal is silently unavailable.
 try:
@@ -64,6 +69,18 @@ _RECOGNISED_FORMATS: set[str] = set(_formatters.keys()) | {"jpg", "tif"}
 @app.get("/")
 def read_root():
     return {"message": "Hello World"}
+
+
+@app.get("/api/steps")
+def list_steps():
+    """Return metadata for every registered pipeline step.
+
+    The frontend uses this endpoint to discover available steps and
+    their configuration schemas.  Each step includes its name,
+    description, version, variant (processor / output_formatter),
+    and a JSON Schema representation of its config.
+    """
+    return [info.model_dump() for info in get_registered_steps()]
 
 
 @app.post("/api/images/process")
