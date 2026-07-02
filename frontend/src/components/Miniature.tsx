@@ -15,7 +15,7 @@ export default function Miniature({
     <img
       src={src}
       alt={alt}
-      className={`max-w-48 max-h-48 rounded-lg border border-gray-600 object-contain ${className}`}
+      className={`max-w-32 max-h-32 rounded-lg border border-gray-600 object-contain ${className}`}
       {...props}
     />
   )

@@ -51,7 +51,9 @@ function GalleryShelf({
 
       {/* ── Shelf body ────────────────────────────────────────────── */}
       <div className="bg-gray-800/20 rounded-xl p-6 shadow-[inset_0_2px_6px_rgba(0,0,0,0.25)] border border-gray-700/30">
-        <div className="flex flex-wrap gap-6">{children}</div>
+        <div className="flex overflow-x-auto gap-4 pb-2 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+          {children}
+        </div>
         {footer && (
           <>
             <div className="mt-6 pt-5 border-t border-gray-700/50" />
@@ -214,7 +216,7 @@ function ProcessedImageCard({
   }
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-2 shrink-0">
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events,
           jsx-a11y/no-static-element-interactions */}
       <Miniature
@@ -230,15 +232,15 @@ function ProcessedImageCard({
           }
         }}
       />
-      <span className="text-xs text-gray-400 truncate max-w-[12rem] text-center">
+      <span className="text-xs text-gray-400 truncate max-w-[10rem] text-center">
         {entry.name}
       </span>
-      <div className="flex gap-2">
-        <Button variant="primary" onClick={handleDownload}>
-          {t('miniatureOptions.download')}
-        </Button>
-        <Button variant="danger" onClick={onRemove}>
+      <div className="flex gap-1.5">
+        <Button variant="danger" onClick={onRemove} className="px-2.5 py-1 text-xs">
           {t('miniatureOptions.remove')}
+        </Button>
+        <Button variant="primary" onClick={handleDownload} className="px-2.5 py-1 text-xs">
+          {t('miniatureOptions.download')}
         </Button>
       </div>
     </div>

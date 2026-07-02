@@ -26,7 +26,7 @@ export default function MiniatureImageWithOptions({
   const canProcess = hasOutputFormatter
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-2 shrink-0">
       <Miniature
         src={src}
         alt={alt}
@@ -44,8 +44,8 @@ export default function MiniatureImageWithOptions({
             : undefined
         }
       />
-      <div className="flex gap-2">
-        <Button variant="danger" onClick={onRemove}>
+      <div className="flex gap-1.5">
+        <Button variant="danger" onClick={onRemove} className="px-2.5 py-1 text-xs">
           {t('miniatureOptions.remove')}
         </Button>
         <div className="relative group/tooltip">
@@ -53,6 +53,7 @@ export default function MiniatureImageWithOptions({
             variant="primary"
             disabled={!canProcess}
             onClick={onProcess}
+            className="px-2.5 py-1 text-xs"
           >
             {t('miniatureOptions.process')}
           </Button>
