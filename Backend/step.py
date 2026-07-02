@@ -15,12 +15,18 @@ expose pipeline steps to the frontend:
 
 * :func:`register` — a decorator that registers a ``Step`` subclass for
   automatic API discovery.
+
+* :class:`Pipeline` — executes a validated sequence of steps following
+  the rule: **at least one Processor, exactly one OutputFormatter (last)**.
+
+* :func:`pipeline_from_steps` — creates a ``Pipeline`` from a list of
+  step IDs using the global step-ID registry.
 """
 
 from __future__ import annotations
 
 import enum
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -56,8 +62,11 @@ class StepInfo(BaseModel):
 
     Attributes
     ----------
+    id : str
+        Machine-readable identifier for the step (e.g. ``"img_proc"``).
+        Used by the frontend to reference steps when building pipelines.
     name : str
-        Unique identifier for the step (e.g. ``"resize"``).
+        Human-readable display name (e.g. ``"Image Processor"``).
     description : str
         Human-readable description of what the step does.
     version : str
@@ -70,6 +79,7 @@ class StepInfo(BaseModel):
         dynamic configuration form.
     """
 
+    id: str
     name: str
     description: str
     version: str
@@ -77,16 +87,25 @@ class StepInfo(BaseModel):
     config_schema: dict
 
 
-# ── Global registry ---------------------------------------------------------
+# ── Global registries -------------------------------------------------------
 
 _registry: dict[str, type[Step]] = {}
-"""Maps step name → Step subclass for API discovery.
+"""Maps step **name** → Step subclass for API discovery (by display name).
 
 Populated by the :func:`register` decorator.
 """
 
+_step_id_map: dict[str, type[Step]] = {}
+"""Maps step **ID** → Step subclass for pipeline construction.
+
+The ID is a short machine-readable string (e.g. ``"img_proc"``) used by
+the frontend and by :func:`pipeline_from_steps` to identify steps when
+assembling a :class:`Pipeline`.
+"""
+
 
 def register(
+    id: str,
     name: str,
     description: str,
     version: str = "1.0.0",
@@ -94,13 +113,18 @@ def register(
     """Decorator that registers a :class:`Step` subclass for API discovery.
 
     The decorated class **must** be a concrete subclass of ``Step``.  Its
-    metadata (name, description, version) will be returned by the
-    ``GET /api/steps`` endpoint.
+    metadata (id, name, description, version) will be returned by the
+    ``GET /api/steps`` endpoint and it becomes available for pipeline
+    construction via :func:`pipeline_from_steps`.
 
     Parameters
     ----------
+    id : str
+        Machine-readable identifier (e.g. ``"img_proc"``).  Used as the
+        lookup key in ``_step_id_map``.
     name : str
-        Unique step name (used as the key in the registry).
+        Human-readable display name (e.g. ``"Image Processor"``).  Used
+        as the lookup key in ``_registry``.
     description : str
         Human-readable description shown in the frontend.
     version : str
@@ -116,7 +140,8 @@ def register(
     ::
 
         @register(
-            name="resize",
+            id="resize",
+            name="Resize",
             description="Resize an image to the specified dimensions",
             version="2.0.0",
         )
@@ -130,7 +155,8 @@ def register(
                 f"@{__name__}.register can only be applied to Step subclasses, "
                 f"got {cls.__name__}"
             )
-        cls._registration_name = name
+        cls._registration_id = id
+        _step_id_map[id] = cls
         _registry[name] = cls
         return cls
 
@@ -176,8 +202,9 @@ class Step(Generic[ConfigT]):
     * a **variant** (:attr:`StepVariant.PROCESSOR` or
       :attr:`StepVariant.OUTPUT_FORMATTER`) that tells the frontend what
       kind of step this is;
-    * a **name**, **description**, and **version** for display and
-      API communication;
+    * an **id** and **name** — the id is a machine-readable key for
+      pipeline construction, while name is a human-readable label;
+    * a **description** and **version** for display and API communication;
     * a **config_schema** — a :class:`pydantic.BaseModel` subclass whose
       JSON Schema is served to the frontend so it can render a
       configuration form;
@@ -189,8 +216,10 @@ class Step(Generic[ConfigT]):
         The wrapped processor or output-formatter instance.
     variant : StepVariant
         ``PROCESSOR`` or ``OUTPUT_FORMATTER``.
+    id : str
+        Machine-readable pipeline identifier.
     name : str
-        Unique step name.
+        Human-readable display name.
     description : str
         Human-readable description.
     version : str
@@ -204,6 +233,7 @@ class Step(Generic[ConfigT]):
         component: Processor | OutputFormatter,
         *,
         variant: StepVariant,
+        id: str,
         name: str,
         description: str,
         version: str,
@@ -211,6 +241,7 @@ class Step(Generic[ConfigT]):
     ) -> None:
         self._component = component
         self.variant = variant
+        self.id = id
         self.name = name
         self.description = description
         self.version = version
@@ -277,6 +308,7 @@ class Step(Generic[ConfigT]):
         includes the JSON Schema of the step's configuration model.
         """
         return StepInfo(
+            id=self.id,
             name=self.name,
             description=self.description,
             version=self.version,
@@ -287,7 +319,202 @@ class Step(Generic[ConfigT]):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
+            f"id={self.id!r}, "
             f"name={self.name!r}, "
-            f"variant={self.variant.value!r}, "
-            f"version={self.version!r})"
+            f"variant={self.variant.value!r})"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ── Pipeline
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class Pipeline:
+    """A validated sequence of :class:`Step` instances.
+
+    Validation rules (enforced at construction time):
+
+    1. At least one :attr:`StepVariant.PROCESSOR` step.
+    2. Exactly one :attr:`StepVariant.OUTPUT_FORMATTER` step.
+    3. The output-formatter step **must** be the last step in the list.
+
+    Parameters
+    ----------
+    steps : list[Step]
+        Ordered list of steps to execute in sequence.
+
+    Raises
+    ------
+    ValueError
+        If any of the validation rules are violated.
+    """
+
+    def __init__(self, steps: list[Step]) -> None:
+        if not steps:
+            raise ValueError("Pipeline must contain at least one step")
+
+        processor_count = 0
+        formatter_count = 0
+
+        for i, step in enumerate(steps):
+            if step.variant == StepVariant.PROCESSOR:
+                processor_count += 1
+            elif step.variant == StepVariant.OUTPUT_FORMATTER:
+                formatter_count += 1
+                if i != len(steps) - 1:
+                    raise ValueError(
+                        f"Output formatter step {step.id!r} must be the last step "
+                        f"in the pipeline, but it is at position {i} "
+                        f"(0-based, total steps: {len(steps)})"
+                    )
+
+        if processor_count < 1:
+            raise ValueError(
+                f"Pipeline must have at least one Processor step, "
+                f"got {processor_count}"
+            )
+
+        if formatter_count != 1:
+            raise ValueError(
+                f"Pipeline must have exactly one OutputFormatter step, "
+                f"got {formatter_count}"
+            )
+
+        self._steps = list(steps)
+
+    @property
+    def steps(self) -> list[Step]:
+        """Return a copy of the internal step list."""
+        return list(self._steps)
+
+    @property
+    def step_count(self) -> int:
+        """Total number of steps in the pipeline."""
+        return len(self._steps)
+
+    @property
+    def processor_count(self) -> int:
+        """Number of Processor steps."""
+        return sum(1 for s in self._steps if s.variant == StepVariant.PROCESSOR)
+
+    @property
+    def formatter(self) -> Step:
+        """Return the single OutputFormatter step."""
+        for s in self._steps:
+            if s.variant == StepVariant.OUTPUT_FORMATTER:
+                return s
+        raise RuntimeError("Pipeline has no output formatter (validation invariant broken)")
+
+    def execute(
+        self,
+        image: Image.Image,
+        configs: dict[str, Any] | None = None,
+    ) -> tuple[bytes, str]:
+        """Run every step in sequence.
+
+        The output of each Processor step is fed as input to the next
+        step.  The final OutputFormatter step produces the returned
+        ``(bytes, content_type)``.
+
+        Parameters
+        ----------
+        image : PIL.Image.Image
+            Input image to process.
+        configs : dict[str, Any] | None
+            Mapping from **step ID** to configuration object.  Steps
+            without an entry in this dict receive ``None`` as config.
+
+        Returns
+        -------
+        tuple[bytes, str]
+            ``(encoded_image_bytes, mime_type_string)``.
+        """
+        configs = configs or {}
+        current = image
+
+        for step in self._steps:
+            cfg = configs.get(step.id)
+            # If no config was supplied, try an empty default so that
+            # steps with all-optional fields work out of the box.
+            if cfg is None:
+                try:
+                    cfg = step.config_schema()
+                except Exception:  # noqa: S110
+                    pass
+
+            if step.variant == StepVariant.PROCESSOR:
+                current = step.execute(current, cfg)  # type: ignore[assignment]
+            else:
+                # Output formatter — extract format/quality from config or kwargs
+                fmt = (
+                    getattr(cfg, "format", None)
+                    if cfg is not None
+                    else None
+                ) or "png"
+                quality = (
+                    getattr(cfg, "quality", None) if cfg is not None else None
+                )
+                return step.execute(
+                    current,
+                    cfg,
+                    output_format=fmt,
+                    quality=quality,
+                )  # type: ignore[return-value]
+
+        raise RuntimeError(
+            "Pipeline ended without reaching the output formatter "
+            "(validation invariant broken)"
+        )
+
+    def __repr__(self) -> str:
+        ids = [s.id for s in self._steps]
+        return (
+            f"Pipeline(steps={ids}, "
+            f"processors={self.processor_count}, "
+            f"formatter={self.formatter.id})"
+        )
+
+
+# ── Pipeline factory --------------------------------------------------------
+
+
+def pipeline_from_steps(step_ids: list[str]) -> Pipeline:
+    """Create a :class:`Pipeline` from a list of step IDs.
+
+    Each ID is looked up in the :data:`_step_id_map` populated by
+    the :func:`register` decorator.
+
+    Parameters
+    ----------
+    step_ids : list[str]
+        Ordered list of step identifiers (as passed to ``@register(id=…)``).
+
+    Returns
+    -------
+    Pipeline
+        A new validated pipeline.
+
+    Raises
+    ------
+    ValueError
+        If any ID is not registered, or if the pipeline validation fails.
+    """
+    steps: list[Step] = []
+
+    for sid in step_ids:
+        cls = _step_id_map.get(sid)
+        if cls is None:
+            available = sorted(_step_id_map)
+            raise ValueError(
+                f"Unknown step ID {sid!r}. "
+                f"Available IDs: {available}"
+            )
+        try:
+            steps.append(cls())
+        except Exception as exc:
+            raise ValueError(
+                f"Failed to instantiate step {sid!r}: {exc}"
+            ) from exc
+
+    return Pipeline(steps)

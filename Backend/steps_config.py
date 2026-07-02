@@ -90,6 +90,7 @@ class OutputFormatConfig(BaseModel):
 
 
 @register(
+    id="img_proc",
     name="image-processor",
     description="Apply crop, resize, rotate, flip, and grayscale transformations",
     version="1.0.0",
@@ -107,6 +108,7 @@ class ImageProcessorStep(Step[ImageProcessingConfig]):
         super().__init__(
             component=ImageProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="img_proc",
             name="image-processor",
             description="Apply crop, resize, rotate, flip, and grayscale transformations",
             version="1.0.0",
@@ -115,6 +117,7 @@ class ImageProcessorStep(Step[ImageProcessingConfig]):
 
 
 @register(
+    id="wm_remover",
     name="watermark-remover",
     description="Detect and remove Gemini / Nano Banana watermarks using reverse-alpha blending",
     version="1.0.0",
@@ -136,6 +139,7 @@ class WatermarkRemovalStep(Step[WatermarkRemovalConfig]):
         super().__init__(
             component=WatermarkRemoverProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="wm_remover",
             name="watermark-remover",
             description="Detect and remove Gemini / Nano Banana watermarks using reverse-alpha blending",
             version="1.0.0",
@@ -161,6 +165,7 @@ class WatermarkRemovalStep(Step[WatermarkRemovalConfig]):
 
 
 @register(
+    id="img_fmt",
     name="image-output-formatter",
     description="Encode an image to PNG, JPEG, WebP, GIF, BMP, or TIFF",
     version="1.0.0",
@@ -172,6 +177,7 @@ class ImageOutputFormatterStep(Step[OutputFormatConfig]):
         super().__init__(
             component=ImageOutputFormatter(),
             variant=StepVariant.OUTPUT_FORMATTER,
+            id="img_fmt",
             name="image-output-formatter",
             description="Encode an image to PNG, JPEG, WebP, GIF, BMP, or TIFF",
             version="1.0.0",
@@ -181,12 +187,24 @@ class ImageOutputFormatterStep(Step[OutputFormatConfig]):
 
 if _avif_formatter_available:
 
+    class AVIFOutputFormatConfig(BaseModel):
+        """Configuration for the AVIF output-formatter step.
+
+        Unlike the generic :class:`OutputFormatConfig`, this schema
+        defaults ``format`` to ``"avif"`` since the wrapped formatter
+        only supports AVIF.
+        """
+
+        format: str = "avif"
+        quality: Optional[int] = 85
+
     @register(
+        id="avif_fmt",
         name="avif-output-formatter",
         description="Encode an image to AVIF (AV1 Image File Format) with superior compression",
         version="1.0.0",
     )
-    class AVIFOutputFormatterStep(Step[OutputFormatConfig]):
+    class AVIFOutputFormatterStep(Step[AVIFOutputFormatConfig]):
         """Wraps :class:`~avif_output_formatter.AVIFOutputFormatter` as a
         pipeline step (only available if Pillow's AVIF plugin is present).
         """
@@ -195,8 +213,9 @@ if _avif_formatter_available:
             super().__init__(
                 component=AVIFOutputFormatter(),
                 variant=StepVariant.OUTPUT_FORMATTER,
+                id="avif_fmt",
                 name="avif-output-formatter",
                 description="Encode an image to AVIF (AV1 Image File Format) with superior compression",
                 version="1.0.0",
-                config_schema=OutputFormatConfig,
+                config_schema=AVIFOutputFormatConfig,
             )

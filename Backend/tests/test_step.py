@@ -15,11 +15,14 @@ from pydantic import BaseModel, ValidationError
 from base import OutputFormatter, Processor
 from models import ProcessingInstructions
 from step import (
+    Pipeline,
     Step,
     StepInfo,
     StepVariant,
     _registry,
+    _step_id_map,
     get_registered_steps,
+    pipeline_from_steps,
     register,
 )
 from steps_config import (
@@ -60,17 +63,20 @@ class TestStepVariant:
 class TestStepInfo:
     def test_minimal_model(self):
         info = StepInfo(
-            name="resize",
+            id="resize",
+            name="Resize",
             description="Resize an image",
             version="1.0.0",
             variant=StepVariant.PROCESSOR,
             config_schema={"type": "object", "properties": {}},
         )
-        assert info.name == "resize"
+        assert info.id == "resize"
+        assert info.name == "Resize"
         assert info.variant == StepVariant.PROCESSOR
 
     def test_json_serializable(self):
         info = StepInfo(
+            id="test_id",
             name="test",
             description="A test step",
             version="2.0.0",
@@ -78,6 +84,7 @@ class TestStepInfo:
             config_schema={"type": "object"},
         )
         d = info.model_dump()
+        assert d["id"] == "test_id"
         assert d["name"] == "test"
         assert d["variant"] == "output_formatter"
         assert d["config_schema"] == {"type": "object"}
@@ -85,6 +92,7 @@ class TestStepInfo:
     def test_invalid_variant_rejected(self):
         with pytest.raises(ValidationError):
             StepInfo(
+                id="bad",
                 name="bad",
                 description="bad",
                 version="1.0.0",
@@ -121,11 +129,13 @@ class TestStepInstantiation:
         step = Step(
             component=_DummyProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="test_proc",
             name="test-processor",
             description="A test processor",
             version="1.0.0",
             config_schema=_DummyConfig,
         )
+        assert step.id == "test_proc"
         assert step.name == "test-processor"
         assert step.variant == StepVariant.PROCESSOR
         assert step.config_schema == _DummyConfig
@@ -134,11 +144,13 @@ class TestStepInstantiation:
         step = Step(
             component=_DummyFormatter(),
             variant=StepVariant.OUTPUT_FORMATTER,
+            id="test_fmt",
             name="test-formatter",
             description="A test formatter",
             version="2.0.0",
             config_schema=_DummyConfig,
         )
+        assert step.id == "test_fmt"
         assert step.name == "test-formatter"
         assert step.variant == StepVariant.OUTPUT_FORMATTER
         assert step.version == "2.0.0"
@@ -147,15 +159,16 @@ class TestStepInstantiation:
         step = Step(
             component=_DummyProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="my_step",
             name="my-step",
             description="desc",
             version="3.0.0",
             config_schema=_DummyConfig,
         )
         r = repr(step)
+        assert "my_step" in r
         assert "my-step" in r
         assert "processor" in r
-        assert "3.0.0" in r
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -170,6 +183,7 @@ class TestStepExecute:
         step = Step(
             component=_DummyProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="proc",
             name="proc",
             description="desc",
             version="1.0.0",
@@ -183,6 +197,7 @@ class TestStepExecute:
 
     def test_processor_execute_passes_config(self):
         """Verify config is forwarded to the component."""
+
         class _CheckingProcessor(Processor):
             def process(self, image, instructions=None):
                 assert instructions == 42
@@ -191,6 +206,7 @@ class TestStepExecute:
         step = Step(
             component=_CheckingProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="check",
             name="check",
             description="desc",
             version="1.0.0",
@@ -203,6 +219,7 @@ class TestStepExecute:
         step = Step(
             component=_DummyProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="proc",
             name="proc",
             description="desc",
             version="1.0.0",
@@ -216,6 +233,7 @@ class TestStepExecute:
         step = Step(
             component=_DummyFormatter(),
             variant=StepVariant.OUTPUT_FORMATTER,
+            id="fmt",
             name="fmt",
             description="desc",
             version="1.0.0",
@@ -230,6 +248,7 @@ class TestStepExecute:
         step = Step(
             component=_DummyFormatter(),
             variant=StepVariant.OUTPUT_FORMATTER,
+            id="fmt",
             name="fmt",
             description="desc",
             version="1.0.0",
@@ -247,6 +266,7 @@ class TestStepExecute:
         step = Step(
             component=_QualityFormatter(),
             variant=StepVariant.OUTPUT_FORMATTER,
+            id="qfmt",
             name="qfmt",
             description="desc",
             version="1.0.0",
@@ -261,6 +281,7 @@ class TestStepExecute:
         step = Step(
             component=_DummyProcessor(),
             variant="alien",  # type: ignore[arg-type]
+            id="alien",
             name="alien",
             description="desc",
             version="0.0.1",
@@ -281,6 +302,7 @@ class TestStepInfoMethod:
         step = Step(
             component=_DummyProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="info_test",
             name="info-test",
             description="Testing info",
             version="4.5.6",
@@ -288,6 +310,7 @@ class TestStepInfoMethod:
         )
         info = step.info()
         assert isinstance(info, StepInfo)
+        assert info.id == "info_test"
         assert info.name == "info-test"
         assert info.description == "Testing info"
         assert info.version == "4.5.6"
@@ -297,6 +320,7 @@ class TestStepInfoMethod:
         step = Step(
             component=_DummyProcessor(),
             variant=StepVariant.PROCESSOR,
+            id="schema_test",
             name="schema-test",
             description="desc",
             version="1.0.0",
@@ -314,21 +338,22 @@ class TestStepInfoMethod:
 
 
 class TestRegisterDecorator:
-    def test_register_adds_to_registry(self):
-        """A decorated Step subclass should appear in the registry."""
+    def test_register_adds_to_registry_and_id_map(self):
+        """A decorated Step subclass should appear in both registries."""
 
         class _RegTestConfig(BaseModel):
             flag: bool = False
 
-        # Use a unique name to avoid collisions
-        unique_name = f"_test_reg_{id(self)}"
+        unique_name = f"_test_reg_name_{id(self)}"
+        unique_id = f"_test_reg_id_{id(self)}"
 
-        @register(name=unique_name, description="reg test", version="0.0.1")
+        @register(id=unique_id, name=unique_name, description="reg test", version="0.0.1")
         class _RegTestStep(Step[_RegTestConfig]):
             def __init__(self):
                 super().__init__(
                     component=_DummyProcessor(),
                     variant=StepVariant.PROCESSOR,
+                    id=unique_id,
                     name=unique_name,
                     description="reg test",
                     version="0.0.1",
@@ -336,21 +361,21 @@ class TestRegisterDecorator:
                 )
 
         assert unique_name in _registry
+        assert unique_id in _step_id_map
         cls = _registry[unique_name]
         assert issubclass(cls, Step)
+        assert _step_id_map[unique_id] is cls
 
     def test_register_on_non_step_raises_typeerror(self):
         """@register must only be applied to Step subclasses."""
         with pytest.raises(TypeError, match="can only be applied to Step"):
 
-            @register(name="bad", description="not a step")  # type: ignore[arg-type]
+            @register(id="bad", name="bad", description="not a step")  # type: ignore[arg-type]
             class NotAStep:
                 pass
 
     def test_get_registered_steps_returns_info_objects(self):
         """get_registered_steps() returns StepInfo for registered steps."""
-        # The registry already contains steps from steps_config; verify the
-        # function returns StepInfo instances.
         infos = get_registered_steps()
         assert all(isinstance(i, StepInfo) for i in infos)
         assert len(infos) > 0
@@ -364,10 +389,12 @@ class TestRegisterDecorator:
         assert "image-output-formatter" in names
 
         proc = next(i for i in infos if i.name == "image-processor")
+        assert proc.id == "img_proc"
         assert proc.variant == StepVariant.PROCESSOR
         assert proc.version == "1.0.0"
 
         fmt = next(i for i in infos if i.name == "image-output-formatter")
+        assert fmt.id == "img_fmt"
         assert fmt.variant == StepVariant.OUTPUT_FORMATTER
 
     def test_get_registered_steps_sorted_by_name(self):
@@ -377,7 +404,6 @@ class TestRegisterDecorator:
 
     def test_skips_failing_instantiation(self):
         """A registered class that raises on __init__ is skipped."""
-        # Inject a broken class into the registry
         class _BrokenConfig(BaseModel):
             pass
 
@@ -401,7 +427,6 @@ class TestRegisterDecorator:
 
 class TestConfigSchemas:
     def test_image_processing_config_is_processing_instructions(self):
-        """ImageProcessingConfig should be a subclass of ProcessingInstructions."""
         assert issubclass(ImageProcessingConfig, ProcessingInstructions)
 
     def test_image_processing_config_validates(self):
@@ -440,6 +465,7 @@ class TestConfigSchemas:
 class TestImageProcessorStep:
     def test_instantiation(self):
         step = ImageProcessorStep()
+        assert step.id == "img_proc"
         assert step.name == "image-processor"
         assert step.variant == StepVariant.PROCESSOR
         assert step.config_schema == ImageProcessingConfig
@@ -468,16 +494,15 @@ class TestImageProcessorStep:
 
 class TestWatermarkRemovalStep:
     def test_instantiation(self):
-        """WatermarkRemovalStep should be available but may fail if
-        the 'remove-ai-watermarks' package is not installed."""
-        # We just check the step is registered; instantiation depends
-        # on the optional dependency.
         from step import _registry
 
         assert "watermark-remover" in _registry
 
+        step = WatermarkRemovalStep()
+        assert step.id == "wm_remover"
+        assert step.variant == StepVariant.PROCESSOR
+
     def test_execute_disabled_returns_copy(self):
-        """When config.enabled=False, the image should be returned unchanged."""
         from unittest.mock import MagicMock, patch
 
         with patch("steps_config._watermark_available", True):
@@ -491,7 +516,6 @@ class TestWatermarkRemovalStep:
                 config = WatermarkRemovalConfig(enabled=False)
                 result = step.execute(img, config)
 
-                # The original image should not have been passed to process()
                 mock_instance.process.assert_not_called()
                 assert result.size == (5, 5)
 
@@ -499,6 +523,7 @@ class TestWatermarkRemovalStep:
 class TestImageOutputFormatterStep:
     def test_instantiation(self):
         step = ImageOutputFormatterStep()
+        assert step.id == "img_fmt"
         assert step.name == "image-output-formatter"
         assert step.variant == StepVariant.OUTPUT_FORMATTER
         assert step.config_schema == OutputFormatConfig
@@ -521,20 +546,18 @@ class TestImageOutputFormatterStep:
 
 class TestAVIFOutputFormatterStep:
     def test_registered_when_available(self):
-        """AVIF step should be registered if the formatter is importable."""
         from step import _registry
 
-        # Either it's registered or not, depending on the environment.
-        # We just verify it doesn't crash.
         registered = "avif-output-formatter" in _registry
         if registered:
             step = AVIFOutputFormatterStep()
+            assert step.id == "avif_fmt"
             assert step.variant == StepVariant.OUTPUT_FORMATTER
             assert step.name == "avif-output-formatter"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ── Integration: everything works together
+# ── Integration: registry → instantiation → execute → API shape
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -543,13 +566,12 @@ class TestIntegration:
 
     def test_all_registered_steps_can_be_instantiated(self):
         infos = get_registered_steps()
-        # get_registered_steps already instantiates each class, so if we
-        # got info objects back, instantiation succeeded.
-        assert len(infos) >= 2  # at least image-processor + image-output-formatter
+        assert len(infos) >= 2
 
     def test_each_step_info_has_required_fields(self):
         infos = get_registered_steps()
         for info in infos:
+            assert info.id
             assert info.name
             assert info.description
             assert info.version
@@ -557,7 +579,6 @@ class TestIntegration:
             assert isinstance(info.config_schema, dict)
 
     def test_processor_steps_have_output_schema(self):
-        """Processor steps should expose a config schema with properties."""
         infos = get_registered_steps()
         processor_infos = [i for i in infos if i.variant == StepVariant.PROCESSOR]
         for info in processor_infos:
