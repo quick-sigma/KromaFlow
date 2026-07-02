@@ -1,5 +1,9 @@
 {
   "fileInput": {
     "loadImages": "Cargar Archivos"
+  },
+  "miniatureOptions": {
+    "remove": "Eliminar",
+    "process": "Procesar"
   }
 }
