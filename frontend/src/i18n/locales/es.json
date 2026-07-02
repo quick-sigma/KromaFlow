@@ -38,6 +38,10 @@
     "noSteps": "No hay pasos disponibles.",
     "typeToSearch": "Escribe para buscar pasos…",
     "noMatch": "Ningún paso coincide con \"{{query}}\"",
+    "filterLabel": "Filtrar por tipo",
+    "filterAll": "Todos",
+    "filterProcessors": "Procesadores",
+    "filterOutput": "Salida",
     "exclusionNotice": "Algunos pasos están ocultos porque ya están en el pipeline."
   },
   "stepConfig": {

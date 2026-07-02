@@ -38,6 +38,10 @@
     "noSteps": "No steps available.",
     "typeToSearch": "Type to search steps…",
     "noMatch": "No steps match \"{{query}}\"",
+    "filterLabel": "Filter by type",
+    "filterAll": "All",
+    "filterProcessors": "Processors",
+    "filterOutput": "Output",
     "exclusionNotice": "Some steps are hidden because they are already in the pipeline."
   },
   "stepConfig": {
