@@ -38,21 +38,23 @@ class TestProcessImageEndpoint:
     def _upload(
         image_bytes: bytes | None = None,
         filename: str = "test.png",
-        recipient: str = "alice",
-        instructions: dict | None = None,
-        output_format: str = "png",
+        pipeline: list[dict] | None = None,
     ) -> any:
-        """Helper to POST a processing request."""
+        """Helper to POST a processing request with a pipeline definition."""
         if image_bytes is None:
             image_bytes = TestProcessImageEndpoint._make_image_bytes()
+
+        if pipeline is None:
+            pipeline = [
+                {"step_id": "img_proc", "config": {}},
+                {"step_id": "img_fmt", "config": {"format": "png"}},
+            ]
 
         return client.post(
             "/api/images/process",
             files={"image": (filename, image_bytes, "image/png")},
             data={
-                "recipient": recipient,
-                "instructions": json.dumps(instructions or {}),
-                "output_format": output_format,
+                "pipeline": json.dumps(pipeline),
             },
         )
 
@@ -66,44 +68,50 @@ class TestProcessImageEndpoint:
 
     def test_process_image_jpeg_output(self):
         """JPEG output returns correct content type and valid image."""
-        response = self._upload(output_format="jpeg")
+        response = self._upload(pipeline=[
+            {"step_id": "img_proc", "config": {}},
+            {"step_id": "img_fmt", "config": {"format": "jpeg", "quality": 80}},
+        ])
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/jpeg"
 
-    def test_process_image_with_instructions(self):
-        """Instructions like resize should affect the output."""
-        instructions = {"resize": {"width": 50, "height": 50}}
-        response = self._upload(instructions=instructions)
+    def test_process_image_with_config(self):
+        """Config like grayscale should affect the output."""
+        response = self._upload(pipeline=[
+            {"step_id": "img_proc", "config": {"grayscale": True}},
+            {"step_id": "img_fmt", "config": {"format": "png"}},
+        ])
         assert response.status_code == 200
         result = Image.open(BytesIO(response.content))
-        assert result.size == (50, 50)
-
-    def test_process_image_different_recipient(self):
-        """Recipient field is accepted (no auth, just stored)."""
-        response = self._upload(recipient="bob@domain.com")
-        assert response.status_code == 200
+        assert result.mode == "L"  # grayscale
 
     def test_process_image_webp_output(self):
         """WebP output returns correct content type."""
-        response = self._upload(output_format="webp")
+        response = self._upload(pipeline=[
+            {"step_id": "img_proc", "config": {}},
+            {"step_id": "img_fmt", "config": {"format": "webp", "quality": 85}},
+        ])
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/webp"
 
     def test_process_large_image_with_multiple_operations(self):
         """Combined operations on a larger image."""
         img_bytes = self._make_image_bytes(size=(200, 150))
-        instructions = {
-            "resize": {"width": 100},
-            "rotate": 90,
-            "grayscale": True,
-        }
         response = self._upload(
             image_bytes=img_bytes,
-            instructions=instructions,
+            pipeline=[
+                {"step_id": "img_proc", "config": {
+                    "resize_width": 100,
+                    "rotate": 90,
+                    "grayscale": True,
+                }},
+                {"step_id": "img_fmt", "config": {"format": "png"}},
+            ],
         )
         assert response.status_code == 200
         result = Image.open(BytesIO(response.content))
         assert result.size == (150, 100)  # 100 wide rotated 90 => 150x100
+        assert result.mode == "L"  # grayscale
 
     # ── Error handling ────────────────────────────────────────────────
 
@@ -112,68 +120,95 @@ class TestProcessImageEndpoint:
         response = client.post(
             "/api/images/process",
             data={
-                "recipient": "alice",
-                "instructions": "{}",
-                "output_format": "png",
+                "pipeline": json.dumps([{"step_id": "img_proc", "config": {}}]),
             },
         )
         assert response.status_code == 422
 
-    def test_missing_recipient(self):
-        """Request without recipient returns 422."""
+    def test_missing_pipeline(self):
+        """Request without pipeline field returns 422."""
         img_bytes = self._make_image_bytes()
         response = client.post(
             "/api/images/process",
             files={"image": ("test.png", img_bytes, "image/png")},
-            data={
-                "instructions": "{}",
-                "output_format": "png",
-            },
         )
         assert response.status_code == 422
 
-    def test_invalid_instructions_json(self):
-        """Invalid JSON in instructions returns 422."""
+    def test_invalid_pipeline_json(self):
+        """Invalid JSON in pipeline returns 422."""
         img_bytes = self._make_image_bytes()
         response = client.post(
             "/api/images/process",
             files={"image": ("test.png", img_bytes, "image/png")},
-            data={
-                "recipient": "alice",
-                "instructions": "not-valid-json",
-                "output_format": "png",
-            },
+            data={"pipeline": "not-valid-json"},
         )
         assert response.status_code == 422
 
-    def test_invalid_instructions_structure(self):
-        """Valid JSON but wrong structure for instructions type returns 422."""
+    def test_pipeline_not_a_list(self):
+        """Pipeline JSON must be an array."""
         img_bytes = self._make_image_bytes()
         response = client.post(
             "/api/images/process",
             files={"image": ("test.png", img_bytes, "image/png")},
-            data={
-                "recipient": "alice",
-                "instructions": '"just a string"',
-                "output_format": "png",
-            },
+            data={"pipeline": json.dumps({"step_id": "img_proc"})},
         )
         assert response.status_code == 422
 
-    def test_unsupported_output_format(self):
-        """Unsupported format returns 400."""
+    def test_pipeline_empty_list(self):
+        """Empty pipeline returns 422."""
         img_bytes = self._make_image_bytes()
         response = client.post(
             "/api/images/process",
             files={"image": ("test.png", img_bytes, "image/png")},
-            data={
-                "recipient": "alice",
-                "instructions": "{}",
-                "output_format": "pdf",
-            },
+            data={"pipeline": json.dumps([])},
+        )
+        assert response.status_code == 422
+
+    def test_unknown_step_id(self):
+        """Unknown step ID returns 400."""
+        img_bytes = self._make_image_bytes()
+        response = self._upload(
+            image_bytes=img_bytes,
+            pipeline=[{"step_id": "nonexistent", "config": {}}],
+        )
+        assert response.status_code == 400
+        assert "Unknown step ID" in response.text
+
+    def test_invalid_step_config_type(self):
+        """Config with wrong types returns 422."""
+        img_bytes = self._make_image_bytes()
+        response = self._upload(
+            image_bytes=img_bytes,
+            pipeline=[
+                {"step_id": "img_proc", "config": {}},
+                {"step_id": "img_fmt", "config": {"quality": "not-a-number"}},
+            ],
+        )
+        assert response.status_code == 422
+        assert "Invalid config" in response.text
+
+    def test_unsupported_format_at_runtime(self):
+        """Format that passes Pydantic validation but is rejected at execution."""
+        img_bytes = self._make_image_bytes()
+        response = self._upload(
+            image_bytes=img_bytes,
+            pipeline=[
+                {"step_id": "img_proc", "config": {}},
+                {"step_id": "img_fmt", "config": {"format": "invalid_format"}},
+            ],
         )
         assert response.status_code == 400
         assert "Unsupported output format" in response.text
+
+    def test_no_processor_pipeline(self):
+        """Pipeline without a processor step returns 422."""
+        img_bytes = self._make_image_bytes()
+        response = self._upload(
+            image_bytes=img_bytes,
+            pipeline=[{"step_id": "img_fmt", "config": {"format": "png"}}],
+        )
+        assert response.status_code == 422
+        assert "at least one Processor" in response.text
 
     def test_invalid_image_file(self):
         """Uploading a non-image file returns 400."""
@@ -181,44 +216,46 @@ class TestProcessImageEndpoint:
             "/api/images/process",
             files={"image": ("notimage.txt", b"this is not an image", "text/plain")},
             data={
-                "recipient": "alice",
-                "instructions": "{}",
-                "output_format": "png",
+                "pipeline": json.dumps([
+                    {"step_id": "img_proc", "config": {}},
+                    {"step_id": "img_fmt", "config": {"format": "png"}},
+                ]),
             },
         )
         assert response.status_code == 400
         assert "not a valid image" in response.text.lower()
 
-    # ── Watermark removal ─────────────────────────────────────────────
+    # ── Watermark removal via pipeline step ───────────────────────────
 
-    def test_watermark_removal_flag_accepted(self):
-        """The remove_watermark flag is accepted (watermark won't be detected)."""
-        instructions = {"remove_watermark": True}
-        response = self._upload(instructions=instructions)
+    def test_watermark_removal_step(self):
+        """Pipeline with wm_remover step (no watermark to detect)."""
+        response = self._upload(pipeline=[
+            {"step_id": "wm_remover", "config": {}},
+            {"step_id": "img_fmt", "config": {"format": "png"}},
+        ])
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/png"
 
-    def test_watermark_removal_false_is_noop(self):
-        """remove_watermark: false behaves like no flag."""
-        instructions = {"remove_watermark": False}
-        response = self._upload(instructions=instructions)
-        assert response.status_code == 200
-
-    # ── AVIF output ───────────────────────────────────────────────────
+    # ── AVIF output via pipeline step ─────────────────────────────────
 
     def test_avif_output_success(self):
         """AVIF output returns correct content type."""
-        response = self._upload(output_format="avif")
+        response = self._upload(pipeline=[
+            {"step_id": "img_proc", "config": {}},
+            {"step_id": "avif_fmt", "config": {"quality": 85}},
+        ])
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/avif"
         result = Image.open(BytesIO(response.content))
         assert result.format == "AVIF"
 
-    def test_avif_output_with_instructions(self):
-        """AVIF with resize instructions works correctly."""
-        instructions = {"resize": {"width": 50, "height": 50}}
-        response = self._upload(instructions=instructions, output_format="avif")
+    def test_avif_output_with_grayscale(self):
+        """AVIF with grayscale config works correctly."""
+        response = self._upload(pipeline=[
+            {"step_id": "img_proc", "config": {"grayscale": True}},
+            {"step_id": "avif_fmt", "config": {"quality": 85}},
+        ])
         assert response.status_code == 200
         result = Image.open(BytesIO(response.content))
-        assert result.size == (50, 50)
+        assert result.size == (100, 100)
         assert result.format == "AVIF"

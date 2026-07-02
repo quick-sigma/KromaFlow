@@ -21,11 +21,8 @@ from typing import Optional
 from PIL import Image as PILImage
 from pydantic import BaseModel
 
-from base import OutputFormatter, Processor
-from models import ProcessingInstructions
-from output_formatter import ImageOutputFormatter
-from processor import ImageProcessor
 from step import Step, StepInfo, StepVariant, register
+from frontend_types import slider_field, dropdown_field
 
 # ── Attempt to import optional components ──────────────────────────────────
 
@@ -47,43 +44,77 @@ except ImportError:
 # ── Configuration schemas ───────────────────────────────────────────────────
 
 
-class ImageProcessingConfig(ProcessingInstructions):
+class ImageProcessorConfig(BaseModel):
     """Configuration for the :class:`ImageProcessorStep`.
 
-    This is a direct subclass of :class:`~models.ProcessingInstructions` so
-    that the existing processor interface is preserved.  The frontend will
-    receive the JSON Schema of all recognised fields (resize, rotate,
-    flip, grayscale, crop, quality).
+    Matches the fields accepted by :class:`~processor.ImageProcessor`
+    so that configs pass through transparently.
     """
+
+    resize_width: Optional[int] = None
+    resize_height: Optional[int] = None
+    resize_percent: Optional[float] = None
+    rotate: Optional[int] = None
+    flip: Optional[str] = None
+    grayscale: Optional[bool] = None
+    crop_left: Optional[int] = None
+    crop_top: Optional[int] = None
+    crop_right: Optional[int] = None
+    crop_bottom: Optional[int] = None
+
+
+class ImageOutputFormatConfig(BaseModel):
+    """Configuration for the :class:`ImageOutputFormatterStep`.
+
+    Attributes
+    ----------
+    format : str
+        Output image format.
+    quality : int
+        Compression quality for lossy formats (0–100).
+    """
+
+    format: str = dropdown_field(
+        default="png",
+        options=["png", "jpeg", "webp", "gif", "bmp", "tiff"],
+        title="Format",
+        description="Output image format",
+    )
+    quality: int = slider_field(
+        default=85,
+        ge=0,
+        le=100,
+        title="Quality",
+        description="Compression quality (0 = lowest, 100 = highest)",
+    )
 
 
 class WatermarkRemovalConfig(BaseModel):
     """Configuration for the :class:`WatermarkRemovalStep`.
 
-    Attributes
-    ----------
-    enabled : bool
-        Whether to attempt watermark detection and removal.
+    This step currently requires no user-configurable options; watermark
+    removal runs whenever the step is present in the pipeline.
     """
 
-    enabled: bool = True
+    pass
 
 
-class OutputFormatConfig(BaseModel):
-    """Configuration for output-formatter steps.
+class AVIFOutputFormatConfig(BaseModel):
+    """Configuration for the AVIF output-formatter step.
 
     Attributes
     ----------
-    format : str
-        Target image format (e.g. ``"png"``, ``"jpeg"``, ``"webp"``,
-        ``"avif"``).
-    quality : int | None
-        Compression quality for lossy formats (1–100).  ``None`` means
-        the encoder default.
+    quality : int
+        Compression quality (0–100).  Rendered as a slider in the frontend.
     """
 
-    format: str = "png"
-    quality: Optional[int] = 85
+    quality: int = slider_field(
+        default=85,
+        ge=0,
+        le=100,
+        title="Quality",
+        description="Compression quality (0 = lowest, 100 = highest)",
+    )
 
 
 # ── Concrete Step implementations ────────────────────────────────────────────
@@ -91,34 +122,97 @@ class OutputFormatConfig(BaseModel):
 
 @register(
     id="img_proc",
-    name="image-processor",
-    description="Apply crop, resize, rotate, flip, and grayscale transformations",
+    name="Image Processor",
+    description="Crop, resize, rotate, flip, and convert to grayscale",
     version="1.0.0",
 )
-class ImageProcessorStep(Step[ImageProcessingConfig]):
-    """Wraps :class:`~processor.ImageProcessor` as a pipeline step.
-
-    The configuration schema is :class:`ImageProcessingConfig`, which is
-    a subclass of :class:`~models.ProcessingInstructions`.  The base
-    :meth:`Step.execute` passes the config directly to
-    :meth:`Processor.process`.
-    """
+class ImageProcessorStep(Step[ImageProcessorConfig]):
+    """Wraps :class:`~processor.ImageProcessor` as a pipeline step."""
 
     def __init__(self) -> None:
+        from processor import ImageProcessor
+
         super().__init__(
             component=ImageProcessor(),
             variant=StepVariant.PROCESSOR,
             id="img_proc",
-            name="image-processor",
-            description="Apply crop, resize, rotate, flip, and grayscale transformations",
+            name="Image Processor",
+            description="Crop, resize, rotate, flip, and convert to grayscale",
             version="1.0.0",
-            config_schema=ImageProcessingConfig,
+            config_schema=ImageProcessorConfig,
+        )
+
+    def execute(
+        self,
+        image: PILImage.Image,
+        config: ImageProcessorConfig | None = None,
+        /,
+        **kwargs,
+    ) -> PILImage.Image:
+        """Convert the flat config fields into ProcessingInstructions and delegate."""
+        from models import ProcessingInstructions, ResizeInstruction
+
+        if config is None:
+            return self._component.process(image, None)
+
+        instructions = ProcessingInstructions(
+            resize=(
+                ResizeInstruction(
+                    width=config.resize_width,
+                    height=config.resize_height,
+                    percent=config.resize_percent,
+                )
+                if any([config.resize_width, config.resize_height, config.resize_percent])
+                else None
+            ),
+            rotate=config.rotate,
+            flip=config.flip,
+            grayscale=config.grayscale,
+            crop=(
+                {
+                    "left": config.crop_left,
+                    "top": config.crop_top,
+                    "right": config.crop_right,
+                    "bottom": config.crop_bottom,
+                }
+                if all([
+                    config.crop_left is not None,
+                    config.crop_top is not None,
+                    config.crop_right is not None,
+                    config.crop_bottom is not None,
+                ])
+                else None
+            ),
+        )
+        return self._component.process(image, instructions)
+
+
+@register(
+    id="img_fmt",
+    name="Image Output",
+    description="Encode an image to the requested format (PNG, JPEG, WebP, etc.)",
+    version="1.0.0",
+)
+class ImageOutputFormatterStep(Step[ImageOutputFormatConfig]):
+    """Wraps :class:`~output_formatter.ImageOutputFormatter` as a pipeline step."""
+
+    def __init__(self) -> None:
+        from output_formatter import ImageOutputFormatter
+
+        super().__init__(
+            component=ImageOutputFormatter(),
+            variant=StepVariant.OUTPUT_FORMATTER,
+            id="img_fmt",
+            name="Image Output",
+            description="Encode an image to the requested format (PNG, JPEG, WebP, etc.)",
+            version="1.0.0",
+            config_schema=ImageOutputFormatConfig,
         )
 
 
 @register(
     id="wm_remover",
-    name="watermark-remover",
+    name="Watermark Remover",
     description="Detect and remove Gemini / Nano Banana watermarks using reverse-alpha blending",
     version="1.0.0",
 )
@@ -140,7 +234,7 @@ class WatermarkRemovalStep(Step[WatermarkRemovalConfig]):
             component=WatermarkRemoverProcessor(),
             variant=StepVariant.PROCESSOR,
             id="wm_remover",
-            name="watermark-remover",
+            name="Watermark Remover",
             description="Detect and remove Gemini / Nano Banana watermarks using reverse-alpha blending",
             version="1.0.0",
             config_schema=WatermarkRemovalConfig,
@@ -153,54 +247,15 @@ class WatermarkRemovalStep(Step[WatermarkRemovalConfig]):
         /,
         **kwargs,
     ) -> PILImage.Image:
-        """Run watermark removal if *config* says it's enabled.
-
-        When ``config.enabled`` is ``False`` the image is returned
-        unchanged (copied).
-        """
-        if config is not None and not config.enabled:
-            return image.copy()
-
+        """Always run watermark removal when this step is in the pipeline."""
         return self._component.process(image, None)
-
-
-@register(
-    id="img_fmt",
-    name="image-output-formatter",
-    description="Encode an image to PNG, JPEG, WebP, GIF, BMP, or TIFF",
-    version="1.0.0",
-)
-class ImageOutputFormatterStep(Step[OutputFormatConfig]):
-    """Wraps :class:`~output_formatter.ImageOutputFormatter` as a pipeline step."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            component=ImageOutputFormatter(),
-            variant=StepVariant.OUTPUT_FORMATTER,
-            id="img_fmt",
-            name="image-output-formatter",
-            description="Encode an image to PNG, JPEG, WebP, GIF, BMP, or TIFF",
-            version="1.0.0",
-            config_schema=OutputFormatConfig,
-        )
 
 
 if _avif_formatter_available:
 
-    class AVIFOutputFormatConfig(BaseModel):
-        """Configuration for the AVIF output-formatter step.
-
-        Unlike the generic :class:`OutputFormatConfig`, this schema
-        defaults ``format`` to ``"avif"`` since the wrapped formatter
-        only supports AVIF.
-        """
-
-        format: str = "avif"
-        quality: Optional[int] = 85
-
     @register(
         id="avif_fmt",
-        name="avif-output-formatter",
+        name="AVIF Image Output",
         description="Encode an image to AVIF (AV1 Image File Format) with superior compression",
         version="1.0.0",
     )
@@ -214,8 +269,13 @@ if _avif_formatter_available:
                 component=AVIFOutputFormatter(),
                 variant=StepVariant.OUTPUT_FORMATTER,
                 id="avif_fmt",
-                name="avif-output-formatter",
+                name="AVIF Image Output",
                 description="Encode an image to AVIF (AV1 Image File Format) with superior compression",
                 version="1.0.0",
                 config_schema=AVIFOutputFormatConfig,
             )
+
+        @property
+        def default_format(self) -> str:
+            """This formatter only produces AVIF."""
+            return "avif"

@@ -20,6 +20,7 @@ import Button from './Button'
 import StepSearch from './StepSearch'
 import StepConfigDialog from './StepConfigDialog'
 import PipelineFlowGraph from './PipelineFlowGraph'
+import { usePipelineStore } from '../stores/pipeline'
 import type { StepInfo, StepVariant } from '../stores/steps'
 
 // ── Local types ──────────────────────────────────────────────────────────────
@@ -273,6 +274,12 @@ export default function PipelineEditor() {
 
   const configuringStep =
     configuringIndex !== null ? pipelineSteps[configuringIndex] : null
+
+  // ── Sync pipeline steps to global store for image processing ─────
+  const setPipelineStoreSteps = usePipelineStore((s) => s.setSteps)
+  useEffect(() => {
+    setPipelineStoreSteps(pipelineSteps)
+  }, [pipelineSteps, setPipelineStoreSteps])
 
   return (
     <div className="w-80 shrink-0 bg-gray-800/50 rounded-xl border border-gray-700 flex flex-col">
