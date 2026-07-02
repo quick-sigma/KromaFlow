@@ -26,7 +26,7 @@ export default function MiniatureImageWithOptions({
   const canProcess = hasOutputFormatter
 
   return (
-    <div className="flex flex-col items-center gap-2 shrink-0">
+    <div className="flex flex-col items-center gap-2 shrink-0 snap-start">
       <Miniature
         src={src}
         alt={alt}

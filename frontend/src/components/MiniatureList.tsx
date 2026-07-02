@@ -51,7 +51,7 @@ function GalleryShelf({
 
       {/* ── Shelf body ────────────────────────────────────────────── */}
       <div className="bg-gray-800/20 rounded-xl p-6 shadow-[inset_0_2px_6px_rgba(0,0,0,0.25)] border border-gray-700/30">
-        <div className="flex overflow-x-auto gap-4 pb-2 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+        <div className="flex overflow-x-auto gap-4 pb-2 scroll-smooth snap-x snap-mandatory [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
           {children}
         </div>
         {footer && (
@@ -216,7 +216,7 @@ function ProcessedImageCard({
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 shrink-0">
+    <div className="flex flex-col items-center gap-2 shrink-0 snap-start">
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events,
           jsx-a11y/no-static-element-interactions */}
       <Miniature
