@@ -83,6 +83,7 @@ type ImageState = {
   clearOriginalImages: () => Promise<void>
   clearProcessedImages: () => Promise<void>
   processImage: (id: string) => void
+  processAllImages: () => Promise<void>
   clearImages: () => Promise<void>
   /** Clears processing status back to idle */
   clearProcessingStatus: () => void
@@ -327,6 +328,120 @@ export const useImagesStore = create<ImageState>()(
               err instanceof Error ? err.message : 'Unknown processing error',
           })
         }
+      },
+
+      processAllImages: async () => {
+        const { images } = get()
+        if (images.length === 0) return
+
+        const pipelineSteps = usePipelineStore.getState().steps
+        if (pipelineSteps.length === 0) {
+          set({
+            processingState: 'error',
+            processingError: 'No pipeline steps configured. Add steps first.',
+            processingId: null,
+          })
+          return
+        }
+
+        const hasOutputFormatter = pipelineSteps.some(
+          (ps) => ps.step.variant === 'output_formatter',
+        )
+        if (!hasOutputFormatter) {
+          set({
+            processingState: 'error',
+            processingError:
+              'Pipeline needs an output step. Add one before processing.',
+            processingId: null,
+          })
+          return
+        }
+
+        const pipelinePayload = pipelineSteps.map((ps) => ({
+          step_id: ps.step.id,
+          config: ps.config,
+        }))
+
+        set({
+          processingState: 'processing',
+          processingId: null,
+          processingError: null,
+        })
+
+        const errors: string[] = []
+        const newProcessed: ProcessedImageEntry[] = []
+
+        for (const entry of images) {
+          try {
+            const formData = new FormData()
+            formData.append('image', entry.file)
+            formData.append('pipeline', JSON.stringify(pipelinePayload))
+
+            const response = await fetch(`${API_BASE}/api/images/process`, {
+              method: 'POST',
+              body: formData,
+            })
+
+            if (!response.ok) {
+              const errorBody = await response.text()
+              let detail = `Server error: ${response.status}`
+              try {
+                const parsed = JSON.parse(errorBody)
+                if (parsed.detail) detail = parsed.detail
+              } catch {
+                if (errorBody) detail = errorBody
+              }
+              throw new Error(`${entry.name}: ${detail}`)
+            }
+
+            const blob = await response.blob()
+            const resultId = crypto.randomUUID()
+            const resultKey = processedBlobKeyForId(resultId)
+            await syncEngine.putBlob(resultKey, blob)
+
+            const resultSrc = URL.createObjectURL(blob)
+            const baseName = entry.name.replace(/\.[^.]+$/, '')
+            const ext = entry.name.includes('.')
+              ? (entry.name.split('.').pop() as string)
+              : 'png'
+
+            newProcessed.push({
+              id: resultId,
+              originalId: entry.id,
+              originalName: entry.name,
+              src: resultSrc,
+              name: `${baseName}-processed.${ext}`,
+              type: blob.type || 'image/png',
+              size: blob.size,
+              blobKey: resultKey,
+              processedAt: Date.now(),
+            })
+
+            // ── Trigger download for each result ────────────────────────
+            const downloadUrl = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = downloadUrl
+            a.download = `${baseName}-processed.${ext}`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(downloadUrl)
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            errors.push(`${entry.name}: ${msg}`)
+          }
+        }
+
+        set((state) => ({
+          processedImages: [...state.processedImages, ...newProcessed],
+          processingState:
+            errors.length === 0 ? 'success' : 'error',
+          processingError:
+            errors.length > 0
+              ? `Processed ${newProcessed.length}/${images.length}. Errors: ${errors.join('; ')}`
+              : null,
+          processingId: null,
+        }))
       },
 
       clearImages: async () => {

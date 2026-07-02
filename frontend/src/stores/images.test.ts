@@ -299,4 +299,129 @@ describe('images store', () => {
     expect(processedImages).toHaveLength(0)
     expect(revokeSpy).toHaveBeenCalledWith('blob:http://localhost/p-src')
   })
+
+  describe('processAllImages', () => {
+    it('should return early when there are no images', async () => {
+      useImagesStore.setState({
+        processingState: 'idle',
+        images: [],
+      })
+      await useImagesStore.getState().processAllImages()
+      const state = useImagesStore.getState()
+      // Should not change to processing or error
+      expect(state.processingState).not.toBe('processing')
+      expect(state.processingState).not.toBe('error')
+    })
+
+    it('should set an error when the pipeline is empty', async () => {
+      usePipelineStore.setState({ steps: [] })
+      await useImagesStore.getState().addImages([createMockFile('photo.png')])
+
+      await useImagesStore.getState().processAllImages()
+
+      const state = useImagesStore.getState()
+      expect(state.processingState).toBe('error')
+      expect(state.processingError).toBe(
+        'No pipeline steps configured. Add steps first.',
+      )
+    })
+
+    it('should set an error when there is no output formatter', async () => {
+      usePipelineStore.setState({
+        steps: [
+          {
+            step: {
+              id: 'wm_remover',
+              name: 'watermark-remover',
+              variant: 'processor',
+            },
+            config: {},
+          },
+        ],
+      })
+      await useImagesStore.getState().addImages([createMockFile('photo.png')])
+
+      await useImagesStore.getState().processAllImages()
+
+      const state = useImagesStore.getState()
+      expect(state.processingState).toBe('error')
+      expect(state.processingError).toContain('output')
+    })
+
+    it('should process all images and store results', async () => {
+      usePipelineStore.setState({
+        steps: [
+          {
+            step: {
+              id: 'png_fmt',
+              name: 'png-output-formatter',
+              variant: 'output_formatter',
+            },
+            config: {},
+          },
+        ],
+      })
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        blob: () =>
+          Promise.resolve(new Blob(['processed'], { type: 'image/png' })),
+      })
+
+      await useImagesStore.getState().addImages([
+        createMockFile('a.png'),
+        createMockFile('b.png'),
+      ])
+
+      await useImagesStore.getState().processAllImages()
+
+      const state = useImagesStore.getState()
+      expect(state.processingState).toBe('success')
+      expect(state.processedImages).toHaveLength(2)
+      expect(state.processedImages[0].originalName).toBe('a.png')
+      expect(state.processedImages[1].originalName).toBe('b.png')
+    })
+
+    it('should handle partial failures and report errors', async () => {
+      usePipelineStore.setState({
+        steps: [
+          {
+            step: {
+              id: 'png_fmt',
+              name: 'png-output-formatter',
+              variant: 'output_formatter',
+            },
+            config: {},
+          },
+        ],
+      })
+
+      // First call succeeds, second call fails
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          blob: () =>
+            Promise.resolve(
+              new Blob(['processed'], { type: 'image/png' }),
+            ),
+        })
+        .mockRejectedValueOnce(new Error('Network error'))
+      globalThis.fetch = mockFetch
+
+      await useImagesStore.getState().addImages([
+        createMockFile('ok.png'),
+        createMockFile('fail.png'),
+      ])
+
+      await useImagesStore.getState().processAllImages()
+
+      const state = useImagesStore.getState()
+      expect(state.processingState).toBe('error')
+      // One result should still be stored
+      expect(state.processedImages).toHaveLength(1)
+      expect(state.processingError).toContain('1/2')
+      expect(state.processingError).toContain('fail.png')
+    })
+  })
 })

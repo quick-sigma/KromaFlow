@@ -7,6 +7,8 @@
   "miniatureOptions": {
     "remove": "Remove",
     "process": "Process",
+    "processAll": "Process All",
+    "processing": "Processing…",
     "processDisabledTooltip": "Add an output step to your pipeline before processing images"
   },
   "imageExplorer": {

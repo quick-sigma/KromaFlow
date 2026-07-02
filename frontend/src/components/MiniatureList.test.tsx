@@ -217,6 +217,60 @@ describe('MiniatureList', () => {
     ).toBeInTheDocument()
   })
 
+  // ── Process All button ──────────────────────────────────────────
+
+  it('shows a Process All button in the To Process section', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('a.png'),
+      createMockFile('b.png'),
+    ])
+    render(<MiniatureList />)
+
+    expect(
+      screen.getByRole('button', { name: 'Process All' }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the Process All button as disabled while processing', async () => {
+    useImagesStore.setState({ processingState: 'processing' })
+    await useImagesStore.getState().addImages([
+      createMockFile('a.png'),
+    ])
+    render(<MiniatureList />)
+
+    const btn = screen.getByRole('button', { name: /processing/i })
+    expect(btn).toBeDisabled()
+  })
+
+  it('does not show a Process All button when there are no images', () => {
+    render(<MiniatureList />)
+    expect(
+      screen.queryByRole('button', { name: 'Process All' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not show a Process All button when there are only processed images', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'test.png',
+          src: 'blob:http://localhost/p1',
+          name: 'test-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+    render(<MiniatureList />)
+    expect(
+      screen.queryByRole('button', { name: 'Process All' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('clears all processed images when the Processed trash icon is clicked', async () => {
     const user = userEvent.setup()
     useImagesStore.setState({

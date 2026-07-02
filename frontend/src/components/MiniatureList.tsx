@@ -17,18 +17,20 @@ function GalleryShelf({
   count,
   clearLabel,
   onClearAll,
+  footer,
   children,
 }: {
   title: string
   count: number
   clearLabel?: string
   onClearAll?: () => void
+  footer?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
     <section className="w-full max-w-5xl">
       {/* ── Shelf header ──────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-4 mb-6">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400 whitespace-nowrap">
           {title}
           <span className="ml-2 text-gray-600 font-normal">({count})</span>
@@ -48,8 +50,14 @@ function GalleryShelf({
       </div>
 
       {/* ── Shelf body ────────────────────────────────────────────── */}
-      <div className="bg-gray-800/20 rounded-xl p-5 shadow-[inset_0_2px_6px_rgba(0,0,0,0.25)] border border-gray-700/30">
-        <div className="flex flex-wrap gap-5">{children}</div>
+      <div className="bg-gray-800/20 rounded-xl p-6 shadow-[inset_0_2px_6px_rgba(0,0,0,0.25)] border border-gray-700/30">
+        <div className="flex flex-wrap gap-6">{children}</div>
+        {footer && (
+          <>
+            <div className="mt-6 pt-5 border-t border-gray-700/50" />
+            <div className="flex justify-center">{footer}</div>
+          </>
+        )}
       </div>
     </section>
   )
@@ -70,6 +78,12 @@ export default function MiniatureList() {
     (state) => state.clearProcessedImages,
   )
   const processImage = useImagesStore((state) => state.processImage)
+  const processAllImages = useImagesStore(
+    (state) => state.processAllImages,
+  )
+  const processingState = useImagesStore(
+    (state) => state.processingState,
+  )
   const pipelineSteps = usePipelineStore((state) => state.steps)
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [selectedProcessedId, setSelectedProcessedId] =
@@ -106,7 +120,7 @@ export default function MiniatureList() {
   }
 
   return (
-    <div className="w-full flex flex-col items-center gap-8">
+    <div className="w-full flex flex-col items-center gap-10">
       {/* ── To Process gallery ────────────────────────────────────── */}
       {images.length > 0 && (
         <GalleryShelf
@@ -114,6 +128,17 @@ export default function MiniatureList() {
           count={images.length}
           onClearAll={clearOriginalImages}
           clearLabel={t('miniatureList.clearToProcess')}
+          footer={
+            <Button
+              onClick={processAllImages}
+              disabled={processingState === 'processing'}
+              className="min-w-[180px]"
+            >
+              {processingState === 'processing'
+                ? t('miniatureOptions.processing')
+                : t('miniatureOptions.processAll')}
+            </Button>
+          }
         >
           {images.map((entry) => (
             <MiniatureImageWithOptions
