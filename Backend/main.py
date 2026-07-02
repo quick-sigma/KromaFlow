@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
+from datetime import datetime, timezone
 from io import BytesIO
+from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +36,55 @@ app.add_middleware(
 )
 
 
+# ── Blob storage ─────────────────────────────────────────────────────────────
+
+STORAGE_DIR = Path(__file__).parent / "storage" / "processed"
+_METADATA_FILE = STORAGE_DIR / "metadata.json"
+
+# Content-type to file extension mapping
+_CONTENT_TYPE_EXT: dict[str, str] = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/avif": ".avif",
+    "image/gif": ".gif",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+}
+
+
+def _ext_from_content_type(content_type: str) -> str:
+    return _CONTENT_TYPE_EXT.get(content_type, ".bin")
+
+
+def _load_metadata() -> dict[str, dict]:
+    """Load processed-image metadata from disk."""
+    if not _METADATA_FILE.exists():
+        return {}
+    try:
+        with open(_METADATA_FILE) as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to load metadata file: %s", exc)
+    return {}
+
+
+def _save_metadata(meta: dict[str, dict]) -> None:
+    """Persist processed-image metadata to disk."""
+    try:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(_METADATA_FILE, "w") as f:
+            json.dump(meta, f, indent=2)
+    except OSError as exc:
+        logger.error("Failed to save metadata: %s", exc)
+
+
+# In-memory metadata store backed by the JSON file on disk
+_processed_metadata: dict[str, dict] = _load_metadata()
+
+
 # ── Routes ─────────────────────────────────────────────────────────────────
 
 
@@ -59,27 +111,20 @@ async def process_image_endpoint(
     pipeline: str = Form(...),
 ):
     """Receive an image and a pipeline definition, execute the pipeline,
-    and return the processed image.
+    store the result on disk, and return its metadata (including a
+    ``resultId`` that can be used to download or delete the result).
 
     The ``pipeline`` field is a JSON string containing a list of step
     definitions::
 
         [
-            {"step_id": "img_proc", "config": {"grayscale": true}},
-            {"step_id": "img_fmt", "config": {"format": "png", "quality": 85}}
+            {"step_id": "wm_remover", "config": {}},
+            {"step_id": "avif_fmt", "config": {"quality": 85}}
         ]
-
-    Parameters
-    ----------
-    image : UploadFile
-        The source image file.
-    pipeline : str
-        JSON-encoded list of step definitions with their configs.
 
     Returns
     -------
-    Response
-        The processed image with the appropriate ``Content-Type`` header.
+    JSON with ``resultId``, ``name``, ``type``, ``size`` and ``downloadUrl``.
     """
     # ── Parse pipeline JSON ───────────────────────────────────────────
     try:
@@ -175,4 +220,73 @@ async def process_image_endpoint(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    return Response(content=data, media_type=content_type)
+    # ── Store processed result on disk ─────────────────────────────────
+    result_id = str(uuid.uuid4())
+    ext = _ext_from_content_type(content_type)
+    file_path = STORAGE_DIR / f"{result_id}{ext}"
+
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    file_path.write_bytes(data)
+
+    original_name = image.filename or "image.png"
+    stem = Path(original_name).stem
+    display_name = f"{stem}-processed{ext}"
+
+    _processed_metadata[result_id] = {
+        "originalName": original_name,
+        "displayName": display_name,
+        "type": content_type,
+        "size": len(data),
+        "ext": ext,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_metadata(_processed_metadata)
+
+    return {
+        "resultId": result_id,
+        "name": display_name,
+        "type": content_type,
+        "size": len(data),
+        "downloadUrl": f"/api/images/{result_id}/download",
+    }
+
+
+@app.get("/api/images/{image_id}/download")
+def download_processed_image(image_id: str):
+    """Serve a previously processed image from disk storage.
+
+    The image is identified by the ``resultId`` returned by the
+    ``POST /api/images/process`` endpoint.
+    """
+    metadata = _processed_metadata.get(image_id)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    file_path = STORAGE_DIR / f"{image_id}{metadata['ext']}"
+    if not file_path.exists():
+        # Metadata exists but file is missing – clean up stale entry
+        _processed_metadata.pop(image_id, None)
+        _save_metadata(_processed_metadata)
+        raise HTTPException(status_code=404, detail="Image file not found on disk")
+
+    data = file_path.read_bytes()
+    return Response(content=data, media_type=metadata["type"])
+
+
+@app.delete("/api/images/{image_id}", status_code=204)
+def delete_processed_image(image_id: str):
+    """Delete a processed image from disk storage.
+
+    Removes both the file and its metadata entry.
+    Returns 204 regardless of whether the image existed.
+    """
+    metadata = _processed_metadata.pop(image_id, None)
+    if metadata is not None:
+        file_path = STORAGE_DIR / f"{image_id}{metadata['ext']}"
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Failed to delete file %s: %s", file_path, exc)
+        _save_metadata(_processed_metadata)
+
+    return Response(status_code=204)

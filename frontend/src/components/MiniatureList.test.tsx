@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useImagesStore } from '../stores/images'
 import MiniatureList from './MiniatureList'
+
+const API_BASE = 'http://localhost:55558'
 
 function createMockFile(name: string, type = 'image/png'): File {
   return new File(['fake-content'], name, { type })
@@ -10,6 +12,7 @@ function createMockFile(name: string, type = 'image/png'): File {
 
 beforeEach(() => {
   useImagesStore.setState({ images: [], processedImages: [] })
+  vi.restoreAllMocks()
 })
 
 describe('MiniatureList', () => {
@@ -57,11 +60,10 @@ describe('MiniatureList', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'test.png',
-          src: 'blob:http://localhost/processed',
           name: 'test-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -86,11 +88,10 @@ describe('MiniatureList', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'original.png',
-          src: 'blob:http://localhost/processed',
           name: 'original-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -181,11 +182,10 @@ describe('MiniatureList', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'test.png',
-          src: 'blob:http://localhost/p1',
           name: 'test-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -256,11 +256,10 @@ describe('MiniatureList', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'test.png',
-          src: 'blob:http://localhost/p1',
           name: 'test-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -280,11 +279,10 @@ describe('MiniatureList', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'result.png',
-          src: 'blob:http://localhost/p1',
           name: 'result-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -303,22 +301,20 @@ describe('MiniatureList', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'a.png',
-          src: 'blob:http://localhost/p1',
           name: 'a-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
         {
           id: 'p2',
           originalId: 'orig2',
           originalName: 'b.png',
-          src: 'blob:http://localhost/p2',
           name: 'b-processed.png',
           type: 'image/png',
           size: 200,
-          blobKey: 'processed-blob-p2',
+          downloadUrl: `${API_BASE}/api/images/p2/download`,
           processedAt: Date.now(),
         },
       ],
@@ -334,28 +330,29 @@ describe('MiniatureList', () => {
 
   it('clears all processed images when the Processed trash icon is clicked', async () => {
     const user = userEvent.setup()
+    // Mock fetch for the DELETE call
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+
     useImagesStore.setState({
       processedImages: [
         {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'test.png',
-          src: 'blob:http://localhost/p1',
           name: 'test-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
         {
           id: 'p2',
           originalId: 'orig2',
           originalName: 'other.png',
-          src: 'blob:http://localhost/p2',
           name: 'other-processed.png',
           type: 'image/png',
           size: 200,
-          blobKey: 'processed-blob-p2',
+          downloadUrl: `${API_BASE}/api/images/p2/download`,
           processedAt: Date.now(),
         },
       ],

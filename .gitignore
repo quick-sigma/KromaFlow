@@ -29,3 +29,6 @@ Thumbs.db
 coverage/
 .coverage
 .pytest_cache/
+
+# Runtime generated blobs
+Backend/storage/

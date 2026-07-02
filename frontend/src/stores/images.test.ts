@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useImagesStore } from './images'
 import { usePipelineStore } from './pipeline'
 
+const API_BASE = 'http://localhost:55558'
+
 function createMockFile(name: string, type = 'image/png'): File {
   return new File(['fake-content'], name, { type })
 }
@@ -9,6 +11,7 @@ function createMockFile(name: string, type = 'image/png'): File {
 beforeEach(() => {
   useImagesStore.setState({ images: [], processedImages: [] })
   usePipelineStore.setState({ steps: [] })
+  vi.restoreAllMocks()
 })
 
 describe('images store', () => {
@@ -86,7 +89,7 @@ describe('images store', () => {
     expect(images[0].name).toBe('keep.png')
   })
 
-  it('should add a processed image result', async () => {
+  it('should add a processed image result with downloadUrl', async () => {
     const { addImages, processImage } = useImagesStore.getState()
 
     // Set up pipeline with output formatter
@@ -103,11 +106,18 @@ describe('images store', () => {
       ],
     })
 
-    // Mock fetch to return success
+    // Mock fetch to return JSON (new backend contract)
+    const resultId = crypto.randomUUID()
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      blob: () =>
-        Promise.resolve(new Blob(['processed'], { type: 'image/png' })),
+      json: () =>
+        Promise.resolve({
+          resultId,
+          name: 'photo-processed.png',
+          type: 'image/png',
+          size: 1234,
+          downloadUrl: `/api/images/${resultId}/download`,
+        }),
     })
 
     await addImages([createMockFile('photo.png')])
@@ -129,12 +139,18 @@ describe('images store', () => {
     expect(processedImages[0].originalId).toBe(entry.id)
     expect(processedImages[0].originalName).toBe('photo.png')
     expect(processedImages[0].name).toContain('photo-processed')
-    expect(processedImages[0].src).toMatch(/^blob:/)
     expect(processedImages[0].processedAt).toBeGreaterThan(0)
+    // Should have downloadUrl instead of blob src
+    expect(processedImages[0].downloadUrl).toContain(API_BASE)
+    expect(processedImages[0].downloadUrl).toContain('/download')
+    expect(processedImages[0].downloadUrl).toContain(resultId)
+    // Should NOT have blobKey or blob src
+    expect((processedImages[0] as Record<string, unknown>).blobKey).toBeUndefined()
   })
 
-  it('should remove a processed image', async () => {
-    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+  it('should remove a processed image and call backend DELETE', async () => {
+    // Mock fetch so the DELETE call doesn't fail
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
 
     // Manually add a processed image entry
     useImagesStore.setState({
@@ -143,11 +159,10 @@ describe('images store', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'test.png',
-          src: 'blob:http://localhost/processed-src',
           name: 'test-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -157,7 +172,11 @@ describe('images store', () => {
 
     const { processedImages } = useImagesStore.getState()
     expect(processedImages).toHaveLength(0)
-    expect(revokeSpy).toHaveBeenCalled()
+    // Should have called DELETE on the backend
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `${API_BASE}/api/images/p1`,
+      expect.objectContaining({ method: 'DELETE' }),
+    )
   })
 
   it('should reject processing when the pipeline is empty', async () => {
@@ -202,25 +221,26 @@ describe('images store', () => {
     expect(state.processingError).toContain('output')
   })
 
-  it('should clear all images and processed images and revoke all blob URLs', async () => {
+  it('should clear all images and processed images, revoke original blob URLs, and call DELETE on backend', async () => {
     const revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+    // Mock fetch for processed image DELETE calls
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
     const { addImages, clearImages } = useImagesStore.getState()
 
     await addImages([createMockFile('a.png'), createMockFile('b.png')])
     const urls = useImagesStore.getState().images.map((img) => img.src)
 
-    // Add a processed image
+    // Add a processed image (new format)
     useImagesStore.setState({
       processedImages: [
         {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'a.png',
-          src: 'blob:http://localhost/p-src',
           name: 'a-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -231,13 +251,19 @@ describe('images store', () => {
     const { images, processedImages } = useImagesStore.getState()
     expect(images).toHaveLength(0)
     expect(processedImages).toHaveLength(0)
+    // Original blob URLs should be revoked
     expect(revokeSpy).toHaveBeenCalledWith(urls[0])
     expect(revokeSpy).toHaveBeenCalledWith(urls[1])
-    expect(revokeSpy).toHaveBeenCalledWith('blob:http://localhost/p-src')
+    // Backend DELETE should have been called for the processed image
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `${API_BASE}/api/images/p1`,
+      expect.objectContaining({ method: 'DELETE' }),
+    )
   })
 
   it('should clear only original images with clearOriginalImages', async () => {
     const revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
     await useImagesStore.getState().addImages([
       createMockFile('keep-processed.png'),
     ])
@@ -249,11 +275,10 @@ describe('images store', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'keep-processed.png',
-          src: 'blob:http://localhost/p-src',
           name: 'keep-processed-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -269,8 +294,8 @@ describe('images store', () => {
     expect(revokeSpy).toHaveBeenCalledWith(imgEntry.src)
   })
 
-  it('should clear only processed images with clearProcessedImages', async () => {
-    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+  it('should clear only processed images with clearProcessedImages, calling backend DELETE', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
     await useImagesStore.getState().addImages([
       createMockFile('original.png'),
     ])
@@ -281,11 +306,10 @@ describe('images store', () => {
           id: 'p1',
           originalId: 'orig1',
           originalName: 'original.png',
-          src: 'blob:http://localhost/p-src',
           name: 'original-processed.png',
           type: 'image/png',
           size: 100,
-          blobKey: 'processed-blob-p1',
+          downloadUrl: `${API_BASE}/api/images/p1/download`,
           processedAt: Date.now(),
         },
       ],
@@ -297,7 +321,11 @@ describe('images store', () => {
     // Original images should survive
     expect(images).toHaveLength(1)
     expect(processedImages).toHaveLength(0)
-    expect(revokeSpy).toHaveBeenCalledWith('blob:http://localhost/p-src')
+    // Should have called backend DELETE
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `${API_BASE}/api/images/p1`,
+      expect.objectContaining({ method: 'DELETE' }),
+    )
   })
 
   describe('processAllImages', () => {
@@ -348,7 +376,7 @@ describe('images store', () => {
       expect(state.processingError).toContain('output')
     })
 
-    it('should process all images and store results', async () => {
+    it('should process all images and store results with downloadUrls', async () => {
       usePipelineStore.setState({
         steps: [
           {
@@ -362,10 +390,17 @@ describe('images store', () => {
         ],
       })
 
+      // Mock fetch to return JSON metadata
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        blob: () =>
-          Promise.resolve(new Blob(['processed'], { type: 'image/png' })),
+        json: () =>
+          Promise.resolve({
+            resultId: 'mock-result-id',
+            name: 'photo-processed.png',
+            type: 'image/png',
+            size: 999,
+            downloadUrl: '/api/images/mock-result-id/download',
+          }),
       })
 
       await useImagesStore.getState().addImages([
@@ -380,6 +415,11 @@ describe('images store', () => {
       expect(state.processedImages).toHaveLength(2)
       expect(state.processedImages[0].originalName).toBe('a.png')
       expect(state.processedImages[1].originalName).toBe('b.png')
+      // Should have downloadUrls
+      state.processedImages.forEach((img) => {
+        expect(img.downloadUrl).toContain(API_BASE)
+        expect(img.downloadUrl).toContain('/download')
+      })
     })
 
     it('should handle partial failures and report errors', async () => {
@@ -401,10 +441,14 @@ describe('images store', () => {
         .fn()
         .mockResolvedValueOnce({
           ok: true,
-          blob: () =>
-            Promise.resolve(
-              new Blob(['processed'], { type: 'image/png' }),
-            ),
+          json: () =>
+            Promise.resolve({
+              resultId: 'ok-id',
+              name: 'ok-processed.png',
+              type: 'image/png',
+              size: 100,
+              downloadUrl: '/api/images/ok-id/download',
+            }),
         })
         .mockRejectedValueOnce(new Error('Network error'))
       globalThis.fetch = mockFetch

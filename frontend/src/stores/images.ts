@@ -2,11 +2,11 @@
  * Images store — manages loaded image files with blob URLs.
  *
  * Features:
- *  - Auto-saves image binary data to IndexedDB (via SyncEngine)
- *  - Persists image metadata across sessions via Zustand persist
- *  - On app load, recreates File objects and blob URLs from stored blobs
- *  - Processing sends the image + current pipeline definition to the backend
- *  - Processed results are stored alongside originals in a separate gallery
+ *  - Original images stored as blobs in IndexedDB (via SyncEngine)
+ *  - Processed images stored on the backend (filesystem)
+ *  - Metadata for both persists across sessions via Zustand persist
+ *  - On app load, recreates File objects and blob URLs for originals
+ *  - Processed images load from the backend download URL
  */
 
 import { create } from 'zustand'
@@ -29,15 +29,20 @@ export type ImageEntry = {
   blobKey: string
 }
 
+/**
+ * Processed images are stored on the backend.  The entry carries
+ * a ``downloadUrl`` that can be used both for ``<img>`` display
+ * and for programmatic download.
+ */
 export type ProcessedImageEntry = {
   id: string
   originalId: string
   originalName: string
-  src: string
   name: string
   type: string
   size: number
-  blobKey: string
+  /** Full URL to download the processed image from the backend */
+  downloadUrl: string
   processedAt: number
 }
 
@@ -54,7 +59,8 @@ type PersistedImageEntry = {
 }
 
 /**
- * Persisted subset of ProcessedImageEntry — excludes the ephemeral `src`.
+ * Persisted subset of ProcessedImageEntry — all fields are serializable,
+ * so no reconstruction is needed on hydration.
  */
 type PersistedProcessedImageEntry = {
   id: string
@@ -63,7 +69,7 @@ type PersistedProcessedImageEntry = {
   name: string
   type: string
   size: number
-  blobKey: string
+  downloadUrl: string
   processedAt: number
 }
 
@@ -98,10 +104,6 @@ type ImageState = {
 
 function blobKeyForId(id: string): string {
   return `image-blob-${id}`
-}
-
-function processedBlobKeyForId(id: string): string {
-  return `processed-blob-${id}`
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
@@ -170,18 +172,24 @@ export const useImagesStore = create<ImageState>()(
       },
 
       removeProcessedImage: async (id: string) => {
-        const { processedImages } = get()
-        const entry = processedImages.find((img) => img.id === id)
-        if (entry) {
-          URL.revokeObjectURL(entry.src)
-          try {
-            await syncEngine.deleteBlob(entry.blobKey)
-          } catch (err) {
-            console.error('[images] Failed to delete processed blob:', err)
+        // Notify the backend to delete the file on disk
+        try {
+          const response = await fetch(`${API_BASE}/api/images/${id}`, {
+            method: 'DELETE',
+          })
+          if (!response.ok && response.status !== 404) {
+            console.warn(
+              `[images] Backend delete returned ${response.status}`,
+            )
           }
+        } catch (err) {
+          console.error('[images] Failed to delete processed image:', err)
         }
+
         set((state) => ({
-          processedImages: state.processedImages.filter((img) => img.id !== id),
+          processedImages: state.processedImages.filter(
+            (img) => img.id !== id,
+          ),
         }))
       },
 
@@ -195,19 +203,26 @@ export const useImagesStore = create<ImageState>()(
             // Ignore cleanup errors
           }
         }
-        set({ images: [], processingId: null, processingState: 'idle', processingError: null })
+        set({
+          images: [],
+          processingId: null,
+          processingState: 'idle',
+          processingError: null,
+        })
       },
 
       clearProcessedImages: async () => {
         const { processedImages } = get()
-        for (const img of processedImages) {
-          URL.revokeObjectURL(img.src)
-          try {
-            await syncEngine.deleteBlob(img.blobKey)
-          } catch {
-            // Ignore cleanup errors
-          }
-        }
+
+        // Fire all backend deletes in parallel
+        await Promise.allSettled(
+          processedImages.map((img) =>
+            fetch(`${API_BASE}/api/images/${img.id}`, {
+              method: 'DELETE',
+            }),
+          ),
+        )
+
         set({ processedImages: [] })
       },
 
@@ -222,7 +237,8 @@ export const useImagesStore = create<ImageState>()(
         if (pipelineSteps.length === 0) {
           set({
             processingState: 'error',
-            processingError: 'No pipeline steps configured. Add steps first.',
+            processingError:
+              'No pipeline steps configured. Add steps first.',
             processingId: id,
           })
           return
@@ -277,29 +293,26 @@ export const useImagesStore = create<ImageState>()(
             throw new Error(detail)
           }
 
-          // ── Get the result blob ─────────────────────────────────────────
-          const blob = await response.blob()
+          // ── Parse the result metadata ──────────────────────────────────
+          const data: {
+            resultId: string
+            name: string
+            type: string
+            size: number
+            downloadUrl: string
+          } = await response.json()
 
-          // ── Store the processed result ──────────────────────────────────
-          const resultId = crypto.randomUUID()
-          const resultKey = processedBlobKeyForId(resultId)
-          await syncEngine.putBlob(resultKey, blob)
-
-          const resultSrc = URL.createObjectURL(blob)
-          const baseName = entry.name.replace(/\.[^.]+$/, '')
-          const ext = entry.name.includes('.')
-            ? (entry.name.split('.').pop() as string)
-            : 'png'
+          const resultId = data.resultId
+          const downloadUrl = `${API_BASE}${data.downloadUrl}`
 
           const processedEntry: ProcessedImageEntry = {
             id: resultId,
             originalId: entry.id,
             originalName: entry.name,
-            src: resultSrc,
-            name: `${baseName}-processed.${ext}`,
-            type: blob.type || 'image/png',
-            size: blob.size,
-            blobKey: resultKey,
+            name: data.name,
+            type: data.type,
+            size: data.size,
+            downloadUrl,
             processedAt: Date.now(),
           }
 
@@ -315,7 +328,9 @@ export const useImagesStore = create<ImageState>()(
           set({
             processingState: 'error',
             processingError:
-              err instanceof Error ? err.message : 'Unknown processing error',
+              err instanceof Error
+                ? err.message
+                : 'Unknown processing error',
           })
         }
       },
@@ -328,7 +343,8 @@ export const useImagesStore = create<ImageState>()(
         if (pipelineSteps.length === 0) {
           set({
             processingState: 'error',
-            processingError: 'No pipeline steps configured. Add steps first.',
+            processingError:
+              'No pipeline steps configured. Add steps first.',
             processingId: null,
           })
           return
@@ -384,26 +400,24 @@ export const useImagesStore = create<ImageState>()(
               throw new Error(`${entry.name}: ${detail}`)
             }
 
-            const blob = await response.blob()
-            const resultId = crypto.randomUUID()
-            const resultKey = processedBlobKeyForId(resultId)
-            await syncEngine.putBlob(resultKey, blob)
+            const data: {
+              resultId: string
+              name: string
+              type: string
+              size: number
+              downloadUrl: string
+            } = await response.json()
 
-            const resultSrc = URL.createObjectURL(blob)
-            const baseName = entry.name.replace(/\.[^.]+$/, '')
-            const ext = entry.name.includes('.')
-              ? (entry.name.split('.').pop() as string)
-              : 'png'
+            const downloadUrl = `${API_BASE}${data.downloadUrl}`
 
             newProcessed.push({
-              id: resultId,
+              id: data.resultId,
               originalId: entry.id,
               originalName: entry.name,
-              src: resultSrc,
-              name: `${baseName}-processed.${ext}`,
-              type: blob.type || 'image/png',
-              size: blob.size,
-              blobKey: resultKey,
+              name: data.name,
+              type: data.type,
+              size: data.size,
+              downloadUrl,
               processedAt: Date.now(),
             })
           } catch (err) {
@@ -426,7 +440,9 @@ export const useImagesStore = create<ImageState>()(
 
       clearImages: async () => {
         const { images, processedImages } = get()
-        for (const img of [...images, ...processedImages]) {
+
+        // Revoke original-image blob URLs and delete from IndexedDB
+        for (const img of images) {
           URL.revokeObjectURL(img.src)
           try {
             await syncEngine.deleteBlob(img.blobKey)
@@ -434,6 +450,16 @@ export const useImagesStore = create<ImageState>()(
             // Ignore cleanup errors
           }
         }
+
+        // Delete processed images from backend
+        await Promise.allSettled(
+          processedImages.map((img) =>
+            fetch(`${API_BASE}/api/images/${img.id}`, {
+              method: 'DELETE',
+            }),
+          ),
+        )
+
         set({
           images: [],
           processedImages: [],
@@ -454,7 +480,7 @@ export const useImagesStore = create<ImageState>()(
       hydrateBlobs: async () => {
         const { images, processedImages } = get()
 
-        // Hydrate original images
+        // Hydrate original images from IndexedDB blobs
         if (images.length > 0) {
           const hydrated: ImageEntry[] = []
 
@@ -482,26 +508,16 @@ export const useImagesStore = create<ImageState>()(
           set({ images: hydrated })
         }
 
-        // Hydrate processed images
-        if (processedImages.length > 0) {
-          const hydratedProcessed: ProcessedImageEntry[] = []
-
-          for (const img of processedImages) {
-            const blob = await syncEngine.getBlob(img.blobKey)
-            if (blob) {
-              const src = URL.createObjectURL(blob)
-              hydratedProcessed.push({
-                ...img,
-                src,
-              })
-            } else {
-              console.warn(
-                `[images] Blob not found for processed image ${img.id}, skipping`,
-              )
-            }
-          }
-
-          set({ processedImages: hydratedProcessed })
+        // Processed images are served from the backend downloadUrl,
+        // so no blob hydration is needed.  However, we filter out
+        // any stale entries from previous schema versions that might
+        // still be in persisted storage (e.g. entries that carried
+        // a 'blobKey' instead of 'downloadUrl').
+        const migratedProcessed = processedImages.filter(
+          (img): img is ProcessedImageEntry => 'downloadUrl' in img,
+        )
+        if (migratedProcessed.length !== processedImages.length) {
+          set({ processedImages: migratedProcessed })
         }
 
         // Also clean up orphaned blobs in the background
@@ -530,12 +546,12 @@ export const useImagesStore = create<ImageState>()(
             name: img.name,
             type: img.type,
             size: img.size,
-            blobKey: img.blobKey,
+            downloadUrl: img.downloadUrl,
             processedAt: img.processedAt,
           }),
         ),
       }),
-      // After persist hydration, auto-trigger blob re-creation
+      // After persist hydration, auto-trigger blob re-creation for originals
       onRehydrateStorage: () => {
         return (state) => {
           if (
@@ -560,16 +576,17 @@ export const useImagesStore = create<ImageState>()(
  */
 async function cleanupOrphanedBlobs(): Promise<void> {
   try {
-    const { images, processedImages } = useImagesStore.getState()
+    const { images } = useImagesStore.getState()
     const validKeys = new Set([
       ...images.map((img) => img.blobKey),
-      ...processedImages.map((img) => img.blobKey),
+      // Processed images no longer store blobs in IndexedDB,
+      // so we only clean up 'image-blob-' keys.
     ])
     const allBlobKeys = await syncEngine.getAllBlobKeys()
 
     for (const key of allBlobKeys) {
       if (
-        (key.startsWith('image-blob-') || key.startsWith('processed-blob-')) &&
+        key.startsWith('image-blob-') &&
         !validKeys.has(key as string)
       ) {
         await syncEngine.deleteBlob(key as string)

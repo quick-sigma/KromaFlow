@@ -121,10 +121,12 @@ export default function MiniatureList() {
     )
   }
 
-  // Determine which image is selected for the explorer
-  const allViewable = [
-    ...images.map((img) => ({ ...img, group: 'original' as const })),
-    ...processedImages.map((img) => ({ ...img, group: 'processed' as const })),
+  // Determine which image is selected for the explorer.
+  // Resolve a 'src' for each entry: originals use their blob URL,
+  // processed images use the backend downloadUrl.
+  const allViewable: ({ id: string; src: string; name: string; group: 'original' | 'processed' })[] = [
+    ...images.map((img) => ({ id: img.id, src: img.src, name: img.name, group: 'original' as const })),
+    ...processedImages.map((img) => ({ id: img.id, src: img.downloadUrl, name: img.name, group: 'processed' as const })),
   ]
 
   const selectedViewableId = selectedImageId ?? selectedProcessedId
@@ -210,6 +212,11 @@ export default function MiniatureList() {
 /**
  * A compact card for a processed image — thumbnail, name,
  * Download, and Remove buttons.
+ *
+ * Processed images are served from the backend storage, so
+ * ``entry.downloadUrl`` is used for both the thumbnail ``<img>``
+ * (browsers handle cross-origin images) and for the download action
+ * (fetched programmatically to obtain a blob).
  */
 function ProcessedImageCard({
   entry,
@@ -222,13 +229,28 @@ function ProcessedImageCard({
 }) {
   const { t } = useTranslation()
 
-  function handleDownload() {
-    const a = document.createElement('a')
-    a.href = entry.src
-    a.download = entry.name
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+  async function handleDownload() {
+    try {
+      const response = await fetch(entry.downloadUrl)
+      if (!response.ok)
+        throw new Error(`Download failed: ${response.status}`)
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+
+      const a = document.createElement('a')
+      a.href = url
+      a.download = entry.name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+
+      // Revoke the temporary blob URL after a short delay to
+      // allow the download to start
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch (err) {
+      console.error('[MiniatureList] Download failed:', err)
+    }
   }
 
   return (
@@ -236,7 +258,7 @@ function ProcessedImageCard({
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events,
           jsx-a11y/no-static-element-interactions */}
       <Miniature
-        src={entry.src}
+        src={entry.downloadUrl}
         alt={entry.name}
         onClick={onView}
         className="cursor-pointer"
