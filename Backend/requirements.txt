@@ -42,3 +42,5 @@ uvloop==0.22.1
 watchfiles==1.2.0
 websockets==16.0
 Pillow==11.2.1
+opencv-python-headless==5.0.0.93
+remove-ai-watermarks==0.12.1

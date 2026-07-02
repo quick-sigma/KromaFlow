@@ -374,3 +374,28 @@ def test_recipient_is_stored_in_order():
     data, _ = process_order(order)
     result = Image.open(BytesIO(data))
     assert result is not None
+
+
+# ── Watermark removal field in instructions ────────────────────────────────
+
+
+def test_remove_watermark_default_is_none():
+    """When not specified, remove_watermark should be None."""
+    instructions = ProcessingInstructions()
+    assert instructions.remove_watermark is None
+
+
+def test_remove_watermark_true():
+    instructions = ProcessingInstructions(remove_watermark=True)
+    assert instructions.remove_watermark is True
+
+
+def test_remove_watermark_false():
+    instructions = ProcessingInstructions(remove_watermark=False)
+    assert instructions.remove_watermark is False
+
+
+def test_remove_watermark_in_instructions_dict():
+    """Parsed from a dict (as the frontend would send it)."""
+    instructions = ProcessingInstructions(**{"remove_watermark": True})
+    assert instructions.remove_watermark is True

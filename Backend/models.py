@@ -44,6 +44,7 @@ class ProcessingInstructions(BaseModel):
     grayscale: Optional[bool] = None
     crop: Optional[dict] = None  # {"left": int, "top": int, "right": int, "bottom": int}
     quality: Optional[int] = 85  # for lossy formats (1-100)
+    remove_watermark: Optional[bool] = None  # enable Gemini watermark removal
 
     @field_validator("rotate")
     @classmethod

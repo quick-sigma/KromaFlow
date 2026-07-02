@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from io import BytesIO
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -17,6 +18,17 @@ from output_formatter import (
     SUPPORTED_FORMATS,
 )
 from processor import ImageProcessor, process_order
+
+# Watermark remover is imported lazily (optional dependency).
+# If the import fails, watermark removal is silently unavailable.
+try:
+    from watermark_remover import WatermarkRemoverProcessor
+
+    _watermark_remover: Processor | None = WatermarkRemoverProcessor()
+except ImportError:
+    _watermark_remover: Processor | None = None
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Image Prepare API")
 
@@ -120,9 +132,24 @@ async def process_image_endpoint(
     # ── Process (serialised via lock) using the abstractions ──────────
     async with _processing_lock:
         try:
+            # 1. Watermark removal (optional, pre-processing step)
+            image_to_process = order.image
+            if order.instructions.remove_watermark:
+                if _watermark_remover is not None:
+                    image_to_process = _watermark_remover.process(
+                        image_to_process, order.instructions
+                    )
+                else:
+                    logger.warning(
+                        "Watermark removal requested but GeminiEngine is not available"
+                    )
+
+            # 2. Image transformations (resize, rotate, etc.)
             processed_image = _processor.process(
-                order.image, order.instructions
+                image_to_process, order.instructions
             )
+
+            # 3. Output formatting
             data, content_type = _formatter.format_output(
                 processed_image,
                 order.output_format,

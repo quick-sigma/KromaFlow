@@ -188,3 +188,18 @@ class TestProcessImageEndpoint:
         )
         assert response.status_code == 400
         assert "not a valid image" in response.text.lower()
+
+    # ── Watermark removal ─────────────────────────────────────────────
+
+    def test_watermark_removal_flag_accepted(self):
+        """The remove_watermark flag is accepted (watermark won't be detected)."""
+        instructions = {"remove_watermark": True}
+        response = self._upload(instructions=instructions)
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+
+    def test_watermark_removal_false_is_noop(self):
+        """remove_watermark: false behaves like no flag."""
+        instructions = {"remove_watermark": False}
+        response = self._upload(instructions=instructions)
+        assert response.status_code == 200
