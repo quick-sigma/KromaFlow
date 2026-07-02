@@ -80,6 +80,8 @@ type ImageState = {
   addImages: (files: File[]) => Promise<void>
   removeImage: (id: string) => Promise<void>
   removeProcessedImage: (id: string) => Promise<void>
+  clearOriginalImages: () => Promise<void>
+  clearProcessedImages: () => Promise<void>
   processImage: (id: string) => void
   clearImages: () => Promise<void>
   /** Clears processing status back to idle */
@@ -180,6 +182,32 @@ export const useImagesStore = create<ImageState>()(
         set((state) => ({
           processedImages: state.processedImages.filter((img) => img.id !== id),
         }))
+      },
+
+      clearOriginalImages: async () => {
+        const { images } = get()
+        for (const img of images) {
+          URL.revokeObjectURL(img.src)
+          try {
+            await syncEngine.deleteBlob(img.blobKey)
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+        set({ images: [], processingId: null, processingState: 'idle', processingError: null })
+      },
+
+      clearProcessedImages: async () => {
+        const { processedImages } = get()
+        for (const img of processedImages) {
+          URL.revokeObjectURL(img.src)
+          try {
+            await syncEngine.deleteBlob(img.blobKey)
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+        set({ processedImages: [] })
       },
 
       processImage: async (id: string) => {

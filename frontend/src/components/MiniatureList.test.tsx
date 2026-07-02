@@ -159,4 +159,103 @@ describe('MiniatureList', () => {
     expect(images).toHaveLength(1)
     expect(images[0]).toHaveAttribute('alt', 'keep.png')
   })
+
+  // ── Clear-all buttons ────────────────────────────────────────────
+
+  it('shows a clear-all button in the To Process section', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('a.png'),
+      createMockFile('b.png'),
+    ])
+    render(<MiniatureList />)
+
+    expect(
+      screen.getByRole('button', { name: 'Clear all images to process' }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a clear-all button in the Processed section', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'test.png',
+          src: 'blob:http://localhost/p1',
+          name: 'test-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+    render(<MiniatureList />)
+
+    expect(
+      screen.getByRole('button', { name: 'Clear all processed images' }),
+    ).toBeInTheDocument()
+  })
+
+  it('clears all original images when the To Process trash icon is clicked', async () => {
+    const user = userEvent.setup()
+    await useImagesStore.getState().addImages([
+      createMockFile('one.png'),
+      createMockFile('two.png'),
+    ])
+
+    render(<MiniatureList />)
+    expect(screen.getAllByRole('img')).toHaveLength(2)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Clear all images to process' }),
+    )
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('No images loaded'),
+    ).toBeInTheDocument()
+  })
+
+  it('clears all processed images when the Processed trash icon is clicked', async () => {
+    const user = userEvent.setup()
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'test.png',
+          src: 'blob:http://localhost/p1',
+          name: 'test-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+        {
+          id: 'p2',
+          originalId: 'orig2',
+          originalName: 'other.png',
+          src: 'blob:http://localhost/p2',
+          name: 'other-processed.png',
+          type: 'image/png',
+          size: 200,
+          blobKey: 'processed-blob-p2',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+
+    render(<MiniatureList />)
+    expect(screen.getByText('Processed')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Clear all processed images' }),
+    )
+
+    expect(screen.queryByText('Processed')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('No images loaded'),
+    ).toBeInTheDocument()
+  })
 })

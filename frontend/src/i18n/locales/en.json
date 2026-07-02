@@ -17,7 +17,9 @@
   "miniatureList": {
     "toProcess": "To Process",
     "processed": "Processed",
-    "noImages": "No images loaded"
+    "noImages": "No images loaded",
+    "clearToProcess": "Clear all images to process",
+    "clearProcessed": "Clear all processed images"
   },
   "pipelineEditor": {
     "header": "Pipeline Editor",

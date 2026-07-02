@@ -235,4 +235,68 @@ describe('images store', () => {
     expect(revokeSpy).toHaveBeenCalledWith(urls[1])
     expect(revokeSpy).toHaveBeenCalledWith('blob:http://localhost/p-src')
   })
+
+  it('should clear only original images with clearOriginalImages', async () => {
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+    await useImagesStore.getState().addImages([
+      createMockFile('keep-processed.png'),
+    ])
+
+    // Add a processed image
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'keep-processed.png',
+          src: 'blob:http://localhost/p-src',
+          name: 'keep-processed-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+
+    const imgEntry = useImagesStore.getState().images[0]
+    await useImagesStore.getState().clearOriginalImages()
+
+    const { images, processedImages } = useImagesStore.getState()
+    expect(images).toHaveLength(0)
+    // Processed images should survive
+    expect(processedImages).toHaveLength(1)
+    expect(revokeSpy).toHaveBeenCalledWith(imgEntry.src)
+  })
+
+  it('should clear only processed images with clearProcessedImages', async () => {
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+    await useImagesStore.getState().addImages([
+      createMockFile('original.png'),
+    ])
+
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'original.png',
+          src: 'blob:http://localhost/p-src',
+          name: 'original-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+
+    await useImagesStore.getState().clearProcessedImages()
+
+    const { images, processedImages } = useImagesStore.getState()
+    // Original images should survive
+    expect(images).toHaveLength(1)
+    expect(processedImages).toHaveLength(0)
+    expect(revokeSpy).toHaveBeenCalledWith('blob:http://localhost/p-src')
+  })
 })

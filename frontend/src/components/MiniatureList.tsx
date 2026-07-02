@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HiOutlineTrash } from 'react-icons/hi'
 import { useImagesStore, type ProcessedImageEntry } from '../stores/images'
 import { usePipelineStore } from '../stores/pipeline'
 import MiniatureImageWithOptions from './MiniatureImageWithOptions'
@@ -14,10 +15,14 @@ import Button from './Button'
 function GalleryShelf({
   title,
   count,
+  clearLabel,
+  onClearAll,
   children,
 }: {
   title: string
   count: number
+  clearLabel?: string
+  onClearAll?: () => void
   children: React.ReactNode
 }) {
   return (
@@ -28,6 +33,17 @@ function GalleryShelf({
           {title}
           <span className="ml-2 text-gray-600 font-normal">({count})</span>
         </h2>
+
+        {onClearAll && (
+          <button
+            onClick={onClearAll}
+            className="text-gray-600 hover:text-red-400 transition-colors cursor-pointer p-0.5"
+            aria-label={clearLabel}
+          >
+            <HiOutlineTrash className="w-4 h-4" />
+          </button>
+        )}
+
         <div className="h-px flex-1 bg-gradient-to-r from-gray-700 to-transparent" />
       </div>
 
@@ -46,6 +62,12 @@ export default function MiniatureList() {
   const removeImage = useImagesStore((state) => state.removeImage)
   const removeProcessedImage = useImagesStore(
     (state) => state.removeProcessedImage,
+  )
+  const clearOriginalImages = useImagesStore(
+    (state) => state.clearOriginalImages,
+  )
+  const clearProcessedImages = useImagesStore(
+    (state) => state.clearProcessedImages,
   )
   const processImage = useImagesStore((state) => state.processImage)
   const pipelineSteps = usePipelineStore((state) => state.steps)
@@ -90,6 +112,8 @@ export default function MiniatureList() {
         <GalleryShelf
           title={t('miniatureList.toProcess')}
           count={images.length}
+          onClearAll={clearOriginalImages}
+          clearLabel={t('miniatureList.clearToProcess')}
         >
           {images.map((entry) => (
             <MiniatureImageWithOptions
@@ -110,6 +134,8 @@ export default function MiniatureList() {
         <GalleryShelf
           title={t('miniatureList.processed')}
           count={processedImages.length}
+          onClearAll={clearProcessedImages}
+          clearLabel={t('miniatureList.clearProcessed')}
         >
           {processedImages.map((entry) => (
             <ProcessedImageCard

@@ -17,7 +17,9 @@
   "miniatureList": {
     "toProcess": "Por Procesar",
     "processed": "Procesadas",
-    "noImages": "No hay imágenes cargadas"
+    "noImages": "No hay imágenes cargadas",
+    "clearToProcess": "Borrar todas las imágenes por procesar",
+    "clearProcessed": "Borrar todas las imágenes procesadas"
   },
   "pipelineEditor": {
     "header": "Editor de Pipeline",
