@@ -307,16 +307,6 @@ export const useImagesStore = create<ImageState>()(
             processedImages: [...state.processedImages, processedEntry],
           }))
 
-          // ── Trigger download ────────────────────────────────────────────
-          const downloadUrl = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = downloadUrl
-          a.download = `${baseName}-processed.${ext}`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(downloadUrl)
-
           set({
             processingState: 'success',
             processingError: null,
@@ -416,16 +406,6 @@ export const useImagesStore = create<ImageState>()(
               blobKey: resultKey,
               processedAt: Date.now(),
             })
-
-            // ── Trigger download for each result ────────────────────────
-            const downloadUrl = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = downloadUrl
-            a.download = `${baseName}-processed.${ext}`
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            URL.revokeObjectURL(downloadUrl)
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
             errors.push(`${entry.name}: ${msg}`)
