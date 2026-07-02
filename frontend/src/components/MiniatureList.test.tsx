@@ -18,8 +18,8 @@ describe('MiniatureList', () => {
     expect(screen.getByText('No images loaded')).toBeInTheDocument()
   })
 
-  it('renders a MiniatureImageWithOptions for each image', () => {
-    useImagesStore.getState().addImages([
+  it('renders a MiniatureImageWithOptions for each image', async () => {
+    await useImagesStore.getState().addImages([
       createMockFile('sunset.png'),
       createMockFile('portrait.jpeg', 'image/jpeg'),
     ])
@@ -30,16 +30,16 @@ describe('MiniatureList', () => {
     expect(images).toHaveLength(2)
   })
 
-  it('displays the image name as alt text', () => {
-    useImagesStore.getState().addImages([createMockFile('vacation.png')])
+  it('displays the image name as alt text', async () => {
+    await useImagesStore.getState().addImages([createMockFile('vacation.png')])
 
     render(<MiniatureList />)
 
     expect(screen.getByRole('img', { name: 'vacation.png' })).toBeInTheDocument()
   })
 
-  it('renders Remove and Process buttons for each image', () => {
-    useImagesStore.getState().addImages([createMockFile('photo.png')])
+  it('renders Remove and Process buttons for each image', async () => {
+    await useImagesStore.getState().addImages([createMockFile('photo.png')])
 
     render(<MiniatureList />)
 
@@ -49,7 +49,7 @@ describe('MiniatureList', () => {
 
   it('removes an image when its Remove button is clicked', async () => {
     const user = userEvent.setup()
-    useImagesStore.getState().addImages([
+    await useImagesStore.getState().addImages([
       createMockFile('keep.png'),
       createMockFile('delete.png'),
     ])
@@ -65,8 +65,8 @@ describe('MiniatureList', () => {
     expect(images[0]).toHaveAttribute('alt', 'keep.png')
   })
 
-  it('does not show the empty state when images are present', () => {
-    useImagesStore.getState().addImages([createMockFile('photo.png')])
+  it('does not show the empty state when images are present', async () => {
+    await useImagesStore.getState().addImages([createMockFile('photo.png')])
 
     render(<MiniatureList />)
 

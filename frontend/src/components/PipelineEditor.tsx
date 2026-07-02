@@ -19,6 +19,7 @@ import { FiChevronDown } from 'react-icons/fi'
 import Button from './Button'
 import StepSearch from './StepSearch'
 import StepConfigDialog from './StepConfigDialog'
+import SavePipelineDialog from './SavePipelineDialog'
 import PipelineFlowGraph from './PipelineFlowGraph'
 import { usePipelineStore } from '../stores/pipeline'
 import type { StepInfo, StepVariant } from '../stores/steps'
@@ -115,13 +116,21 @@ function persistSavedPipelines(pipelines: SavedPipeline[]): void {
 export default function PipelineEditor() {
   const { t } = useTranslation()
   const [isSearchOpen, setSearchOpen] = useState(false)
-  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([])
+
+  // Initialise local state from the persisted global pipeline store.
+  // By the time this component mounts the hydration gate in App.tsx has
+  // already restored all store state from IndexedDB, so we read the
+  // persisted steps directly here.
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(() => {
+    return usePipelineStore.getState().steps
+  })
   const [configuringIndex, setConfiguringIndex] = useState<number | null>(null)
 
   // ── Pipeline save / load state ──────────────────────────────────────
   const [pipelineName, setPipelineName] = useState('')
   const [savedPipelines, setSavedPipelines] = useState<SavedPipeline[]>([])
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [isSaveModalOpen, setSaveModalOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Load saved pipelines from localStorage on mount
@@ -216,30 +225,36 @@ export default function PipelineEditor() {
   // ── Save pipeline ──────────────────────────────────────────────────
   function handleSavePipeline() {
     if (pipelineSteps.length === 0) return
+    setSaveModalOpen(true)
+  }
 
-    let name = pipelineName.trim()
-    if (!name) {
+  function handleSavePipelineConfirm(name: string) {
+    setSaveModalOpen(false)
+
+    let finalName = name.trim()
+    if (!finalName) {
       // Auto-generate a unique name
       const base = t('pipelineEditor.untitledPipeline')
       const existing = savedPipelines.filter((s) =>
         s.name.startsWith(base),
       )
-      name = existing.length === 0 ? base : `${base} ${existing.length + 1}`
+      finalName =
+        existing.length === 0 ? base : `${base} ${existing.length + 1}`
     }
 
     const saved: SavedPipeline = {
-      name,
+      name: finalName,
       steps: pipelineSteps,
       savedAt: new Date().toISOString(),
     }
 
     const updated = [
-      ...savedPipelines.filter((s) => s.name !== name),
+      ...savedPipelines.filter((s) => s.name !== finalName),
       saved,
     ]
     persistSavedPipelines(updated)
     setSavedPipelines(updated)
-    setPipelineName(name)
+    setPipelineName(finalName)
     setDropdownOpen(false)
   }
 
@@ -368,12 +383,29 @@ export default function PipelineEditor() {
 
       {/* ── Bottom buttons: Add Step + Save ───────────────────────── */}
       <div className="p-3 border-t border-gray-700 grid grid-cols-2 gap-2">
-        <Button
-          variant="primary"
-          onClick={() => setSearchOpen(true)}
-        >
-          {t('pipelineEditor.addStep')}
-        </Button>
+        <div className="relative group/tooltip">
+          <Button
+            variant="primary"
+            onClick={() => setSearchOpen(true)}
+          >
+            {t('pipelineEditor.addStep')}
+          </Button>
+          {!hasFormatter && (
+            <div
+              role="tooltip"
+              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                         px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg
+                         shadow-lg whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100
+                         transition-opacity pointer-events-none z-50"
+            >
+              <div
+                className="absolute top-full left-1/2 -translate-x-1/2
+                            border-4 border-transparent border-t-gray-900"
+              />
+              {t('pipelineEditor.missingOutputTooltip')}
+            </div>
+          )}
+        </div>
         <Button
           variant="primary"
           disabled={pipelineSteps.length === 0}
@@ -400,6 +432,15 @@ export default function PipelineEditor() {
           initialConfig={configuringStep.config}
           onSave={handleSaveConfig}
           onClose={() => setConfiguringIndex(null)}
+        />
+      )}
+
+      {/* ── Save pipeline dialog ─────────────────────────────────── */}
+      {isSaveModalOpen && (
+        <SavePipelineDialog
+          currentName={pipelineName}
+          onSave={handleSavePipelineConfirm}
+          onClose={() => setSaveModalOpen(false)}
         />
       )}
     </div>
