@@ -1,20 +1,27 @@
-"""Unit tests for image processing logic."""
+"""Unit tests for image processing logic — ImageProcessor and process_order."""
+
+from __future__ import annotations
 
 from io import BytesIO
-from dataclasses import dataclass
 
 import pytest
 from PIL import Image
 
-# We need to add Backend to path for imports
 import sys
+
 sys.path.insert(0, "..")
 
-from processor import process_order, SUPPORTED_FORMATS
-from models import Order, ProcessingInstructions, ResizeInstruction
+from output_formatter import SUPPORTED_FORMATS
+from models import Order, ProcessingInstructions
+from processor import ImageProcessor, process_order
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def processor():
+    return ImageProcessor()
 
 
 @pytest.fixture
@@ -26,24 +33,13 @@ def rgb_image():
 @pytest.fixture
 def rgba_image():
     """Create a 100x100 RGBA test image with partial transparency."""
-    img = Image.new("RGBA", (100, 100), (255, 0, 0, 128))
-    return img
+    return Image.new("RGBA", (100, 100), (255, 0, 0, 128))
 
 
 @pytest.fixture
 def grayscale_image():
     """Create a 100x100 grayscale test image."""
     return Image.new("L", (100, 100), color=128)
-
-
-@pytest.fixture
-def order_kwargs(rgb_image):
-    """Base kwargs for creating an Order."""
-    return {
-        "image": rgb_image,
-        "recipient": "test_user",
-        "output_format": "png",
-    }
 
 
 def make_order(**overrides) -> Order:
@@ -58,6 +54,77 @@ def make_order(**overrides) -> Order:
     if "instructions" in overrides and isinstance(overrides["instructions"], dict):
         defaults["instructions"] = ProcessingInstructions(**overrides["instructions"])
     return Order(**defaults)
+
+
+# ── ImageProcessor.process() ──────────────────────────────────────────────
+
+
+class TestImageProcessor:
+    """Tests for ImageProcessor.process() — returns a Pillow Image."""
+
+    def test_process_returns_image(self, processor, rgb_image):
+        result = processor.process(rgb_image, ProcessingInstructions())
+        assert isinstance(result, Image.Image)
+        assert result.size == (100, 100)
+
+    def test_does_not_mutate_original(self, processor, rgb_image):
+        original_id = id(rgb_image)
+        result = processor.process(rgb_image, ProcessingInstructions())
+        assert id(result) != original_id  # it's a copy
+
+    def test_resize(self, processor, rgb_image):
+        instructions = ProcessingInstructions(
+            resize={"width": 50, "height": 30}
+        )
+        result = processor.process(rgb_image, instructions)
+        assert result.size == (50, 30)
+
+    def test_resize_by_percent(self, processor, rgb_image):
+        instructions = ProcessingInstructions(resize={"percent": 50})
+        result = processor.process(rgb_image, instructions)
+        assert result.size == (50, 50)
+
+    def test_rotate_90(self, processor, rgb_image):
+        instructions = ProcessingInstructions(rotate=90)
+        result = processor.process(rgb_image, instructions)
+        assert result.size == (100, 100)
+
+    def test_flip_horizontal(self, processor, rgb_image):
+        instructions = ProcessingInstructions(flip="horizontal")
+        result = processor.process(rgb_image, instructions)
+        assert result.size == (100, 100)
+
+    def test_flip_vertical(self, processor, rgb_image):
+        instructions = ProcessingInstructions(flip="vertical")
+        result = processor.process(rgb_image, instructions)
+        assert result.size == (100, 100)
+
+    def test_grayscale(self, processor, rgb_image):
+        instructions = ProcessingInstructions(grayscale=True)
+        result = processor.process(rgb_image, instructions)
+        assert result.mode == "L"
+
+    def test_crop(self, processor, rgb_image):
+        instructions = ProcessingInstructions(
+            crop={"left": 10, "top": 10, "right": 50, "bottom": 50}
+        )
+        result = processor.process(rgb_image, instructions)
+        assert result.size == (40, 40)
+
+    def test_combined_operations(self, processor, rgb_image):
+        instructions = ProcessingInstructions(
+            resize={"width": 80, "height": 60},
+            rotate=90,
+            grayscale=True,
+        )
+        result = processor.process(rgb_image, instructions)
+        assert result.size == (60, 80)
+        assert result.mode == "L"
+
+    def test_empty_instructions_no_op(self, processor, rgb_image):
+        result = processor.process(rgb_image, ProcessingInstructions())
+        assert result.size == (100, 100)
+        assert result.mode == "RGB"
 
 
 # ── SUPPORTED_FORMATS ─────────────────────────────────────────────────────

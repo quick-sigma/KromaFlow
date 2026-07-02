@@ -2,22 +2,32 @@
 
 from __future__ import annotations
 
-import json
 import asyncio
+import json
 from io import BytesIO
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from PIL import Image
 
+from base import Processor, OutputFormatter
 from models import Order, ProcessingInstructions
-from processor import process_order, SUPPORTED_FORMATS
+from output_formatter import (
+    ImageOutputFormatter,
+    SUPPORTED_FORMATS,
+)
+from processor import ImageProcessor, process_order
 
 app = FastAPI(title="Image Prepare API")
 
 # Application-level lock: only one order is processed at a time.
 # This ensures sequential processing of the internal queue.
 _processing_lock = asyncio.Lock()
+
+# Module-level instances of the processing abstractions.
+# These can be overridden via dependency injection if needed.
+_processor: Processor = ImageProcessor()
+_formatter: OutputFormatter = ImageOutputFormatter()
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────
@@ -107,10 +117,17 @@ async def process_image_endpoint(
         output_format=fmt,
     )
 
-    # ── Process (serialised via lock) ─────────────────────────────────
+    # ── Process (serialised via lock) using the abstractions ──────────
     async with _processing_lock:
         try:
-            data, content_type = process_order(order)
+            processed_image = _processor.process(
+                order.image, order.instructions
+            )
+            data, content_type = _formatter.format_output(
+                processed_image,
+                order.output_format,
+                order.instructions.quality,
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 

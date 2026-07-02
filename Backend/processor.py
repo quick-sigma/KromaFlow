@@ -1,86 +1,89 @@
 """Image processing engine.
 
-Takes an ``Order`` (which wraps a Pillow ``Image`` together with
-structured instructions) and applies the requested transformations,
-returning the result as raw bytes with the appropriate MIME type.
+Provides:
+
+* :class:`ImageProcessor` — concrete :class:`base.Processor` that applies
+  crop, resize, rotate, flip, and grayscale transformations.
+* :func:`process_order` — a convenience function that ties a processor
+  and an output formatter together for the common case.
 """
 
 from __future__ import annotations
 
-from io import BytesIO
-
 from PIL import Image
 
-from models import Order
-
-# ── Supported output formats ──────────────────────────────────────────────
-
-SUPPORTED_FORMATS: set[str] = {"png", "jpeg", "webp", "gif", "bmp", "tiff"}
-
-# Aliases – common alternative extensions mapped to the canonical name
-_FORMAT_ALIASES: dict[str, str] = {
-    "jpg": "jpeg",
-    "tif": "tiff",
-}
-
-# Canonical format → MIME type
-_CONTENT_TYPE: dict[str, str] = {
-    "png": "image/png",
-    "jpeg": "image/jpeg",
-    "webp": "image/webp",
-    "gif": "image/gif",
-    "bmp": "image/bmp",
-    "tiff": "image/tiff",
-}
+from base import Processor
+from models import Order, ProcessingInstructions
+from output_formatter import ImageOutputFormatter
 
 
-# ── Public API ────────────────────────────────────────────────────────────
+# ── Concrete implementation ───────────────────────────────────────────────
+
+
+class ImageProcessor(Processor):
+    """Default :class:`Processor` that applies the standard transformations.
+
+    Transformation order (chosen for visual consistency):
+
+    #. Crop
+    #. Resize
+    #. Rotate
+    #. Flip
+    #. Grayscale
+
+    The input image is **copied** before any mutation.
+    """
+
+    def process(
+        self,
+        image: Image.Image,
+        instructions: ProcessingInstructions,
+    ) -> Image.Image:
+        image = image.copy()
+
+        image = _apply_crop(image, instructions.crop)
+        image = _apply_resize(image, instructions.resize)
+        image = _apply_rotate(image, instructions.rotate)
+        image = _apply_flip(image, instructions.flip)
+        image = _apply_grayscale(image, instructions.grayscale)
+
+        return image
+
+
+# ── Convenience orchestrator ──────────────────────────────────────────────
 
 
 def process_order(order: Order) -> tuple[bytes, str]:
-    """Apply the transformations described by ``order.instructions``.
+    """Apply *order.instructions* to *order.image* and encode the result.
+
+    This is a convenience function that internally instantiates an
+    :class:`ImageProcessor` and an :class:`ImageOutputFormatter`.
+    For more control (e.g. custom subclasses) use those classes directly.
 
     Parameters
     ----------
     order : Order
-        The order to process.  ``order.image`` is **not** mutated – a
-        copy is made internally.
+        The order to process.  ``order.image`` is **not** mutated.
 
     Returns
     -------
     tuple[bytes, str]
-        ``(image_data, content_type)`` where ``image_data`` is the
-        encoded result and ``content_type`` is the MIME type (e.g.
-        ``"image/png"``).
+        ``(image_data, content_type)``.
 
     Raises
     ------
     ValueError
-        If ``order.output_format`` is not in :data:`SUPPORTED_FORMATS`.
+        If ``order.output_format`` is not supported.
     """
-    # Resolve format alias and validate
-    output_format = _FORMAT_ALIASES.get(order.output_format, order.output_format).lower()
-    if output_format not in SUPPORTED_FORMATS:
-        raise ValueError(f"Unsupported output format: {order.output_format}")
+    processor = ImageProcessor()
+    formatter = ImageOutputFormatter()
 
-    image = order.image.copy()
-    instructions = order.instructions
-
-    # ── Apply transformations (order matters here) ────────────────────
-    image = _apply_crop(image, instructions.crop)
-    image = _apply_resize(image, instructions.resize)
-    image = _apply_rotate(image, instructions.rotate)
-    image = _apply_flip(image, instructions.flip)
-    image = _apply_grayscale(image, instructions.grayscale)
-
-    # ── Ensure compatibility with the output format ───────────────────
-    image = _ensure_format_compatibility(image, output_format)
-
-    # ── Encode ────────────────────────────────────────────────────────
-    data = _encode(image, output_format, instructions.quality)
-    content_type = _CONTENT_TYPE[output_format]
-
-    return data, content_type
+    processed = processor.process(order.image, order.instructions)
+    return formatter.format_output(
+        processed,
+        order.output_format,
+        order.instructions.quality,
+    )
 
 
 # ── Internal transformation steps ─────────────────────────────────────────
@@ -120,32 +123,9 @@ def _apply_flip(image: Image.Image, flip: str | None) -> Image.Image:
     return image
 
 
-def _apply_grayscale(image: Image.Image, grayscale: bool | None) -> Image.Image:
+def _apply_grayscale(
+    image: Image.Image, grayscale: bool | None
+) -> Image.Image:
     if grayscale:
         return image.convert("L")
     return image
-
-
-def _ensure_format_compatibility(image: Image.Image, output_format: str) -> Image.Image:
-    """Convert image mode if the target format cannot handle it natively."""
-    if output_format == "jpeg":
-        if image.mode == "RGBA":
-            bg = Image.new("RGB", image.size, (255, 255, 255))
-            bg.paste(image, mask=image.split()[3])  # use alpha as mask
-            return bg
-        if image.mode in ("P", "L"):
-            return image.convert("RGB")
-    return image
-
-
-def _encode(image: Image.Image, output_format: str, quality: int | None) -> bytes:
-    """Encode the Pillow image into bytes using the requested format."""
-    buf = BytesIO()
-    save_kwargs: dict = {}
-
-    if output_format in ("jpeg", "webp") and quality is not None:
-        save_kwargs["quality"] = quality
-
-    image.save(buf, format=output_format, **save_kwargs)
-    buf.seek(0)
-    return buf.getvalue()
