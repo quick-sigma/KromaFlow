@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HiOutlineTrash } from 'react-icons/hi'
 import { useImagesStore, type ProcessedImageEntry } from '../stores/images'
@@ -27,6 +27,19 @@ function GalleryShelf({
   footer?: React.ReactNode
   children: React.ReactNode
 }) {
+  /** Scroll horizontally on wheel without requiring Shift. */
+  const handleWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const atEdge =
+      (e.deltaY > 0 && el.scrollLeft >= el.scrollWidth - el.clientWidth - 2) ||
+      (e.deltaY < 0 && el.scrollLeft <= 2)
+    // Only intercept vertical wheels when the content can scroll horizontally
+    if (e.deltaX === 0 && !atEdge) {
+      el.scrollLeft += e.deltaY
+      e.preventDefault()
+    }
+  }, [])
+
   return (
     <section className="w-full max-w-5xl">
       {/* ── Shelf header ──────────────────────────────────────────── */}
@@ -51,7 +64,10 @@ function GalleryShelf({
 
       {/* ── Shelf body ────────────────────────────────────────────── */}
       <div className="bg-gray-800/20 rounded-xl p-6 shadow-[inset_0_2px_6px_rgba(0,0,0,0.25)] border border-gray-700/30">
-        <div className="flex overflow-x-auto gap-4 pb-2 scroll-smooth snap-x snap-mandatory [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+        <div
+          className="flex overflow-x-auto gap-4 pb-2 scroll-smooth snap-x snap-mandatory select-none touch-pan-x [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
+          onWheel={handleWheel}
+        >
           {children}
         </div>
         {footer && (
