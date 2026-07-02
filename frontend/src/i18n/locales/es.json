@@ -4,7 +4,13 @@
   },
   "miniatureOptions": {
     "remove": "Eliminar",
-    "process": "Procesar"
+    "process": "Procesar",
+    "processDisabledTooltip": "Añade un paso de salida a tu pipeline antes de procesar imágenes"
+  },
+  "imageExplorer": {
+    "close": "Cerrar explorador de imágenes",
+    "previous": "Imagen anterior",
+    "next": "Imagen siguiente"
   },
   "miniatureList": {
     "noImages": "No hay imágenes cargadas"
@@ -18,7 +24,8 @@
     "noSavedPipelines": "No hay pipelines guardados aún.",
     "pipelineSaved": "Pipeline guardado exitosamente",
     "confirmDelete": "¿Estás seguro de eliminar \"{{name}}\"?",
-    "untitledPipeline": "Pipeline sin título"
+    "untitledPipeline": "Pipeline sin título",
+    "missingOutputTooltip": "Tu pipeline necesita un paso de salida — añádelo para poder procesar imágenes"
   },
   "stepSearch": {
     "placeholder": "Buscar pasos…",
@@ -34,6 +41,14 @@
     "noOptions": "Este paso no tiene opciones configurables.",
     "cancel": "Cancelar",
     "save": "Guardar",
+    "close": "Cerrar"
+  },
+  "savePipelineDialog": {
+    "title": "Guardar Pipeline",
+    "nameLabel": "Nombre del Pipeline",
+    "namePlaceholder": "Ingresa el nombre del pipeline…",
+    "save": "Guardar",
+    "cancel": "Cancelar",
     "close": "Cerrar"
   }
 }

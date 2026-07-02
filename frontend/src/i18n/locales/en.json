@@ -4,7 +4,13 @@
   },
   "miniatureOptions": {
     "remove": "Remove",
-    "process": "Process"
+    "process": "Process",
+    "processDisabledTooltip": "Add an output step to your pipeline before processing images"
+  },
+  "imageExplorer": {
+    "close": "Close image explorer",
+    "previous": "Previous image",
+    "next": "Next image"
   },
   "miniatureList": {
     "noImages": "No images loaded"
@@ -18,7 +24,8 @@
     "noSavedPipelines": "No saved pipelines yet.",
     "pipelineSaved": "Pipeline saved successfully",
     "confirmDelete": "Are you sure you want to delete \"{{name}}\"?",
-    "untitledPipeline": "Untitled Pipeline"
+    "untitledPipeline": "Untitled Pipeline",
+    "missingOutputTooltip": "Your pipeline needs an output step — add one to enable image processing"
   },
   "stepSearch": {
     "placeholder": "Search steps…",
@@ -34,6 +41,14 @@
     "noOptions": "This step has no configurable options.",
     "cancel": "Cancel",
     "save": "Save",
+    "close": "Close"
+  },
+  "savePipelineDialog": {
+    "title": "Save Pipeline",
+    "nameLabel": "Pipeline Name",
+    "namePlaceholder": "Enter pipeline name…",
+    "save": "Save",
+    "cancel": "Cancel",
     "close": "Close"
   }
 }

@@ -72,4 +72,66 @@ describe('MiniatureList', () => {
 
     expect(screen.queryByText('No images loaded')).not.toBeInTheDocument()
   })
+
+  it('opens the ImageExplorer when an image thumbnail is clicked', async () => {
+    const user = userEvent.setup()
+    await useImagesStore.getState().addImages([
+      createMockFile('explore-me.png'),
+    ])
+
+    render(<MiniatureList />)
+
+    // Click the image thumbnail
+    const img = screen.getByRole('img', { name: 'explore-me.png' })
+    await user.click(img)
+
+    // ImageExplorer should be open with the image in fullscreen
+    expect(
+      screen.getByRole('dialog', { name: 'explore-me.png' }),
+    ).toBeInTheDocument()
+  })
+
+  it('closes the ImageExplorer when the close button is clicked', async () => {
+    const user = userEvent.setup()
+    await useImagesStore.getState().addImages([
+      createMockFile('close-me.png'),
+    ])
+
+    render(<MiniatureList />)
+
+    // Open explorer
+    const img = screen.getByRole('img', { name: 'close-me.png' })
+    await user.click(img)
+
+    // Close it
+    await user.click(
+      screen.getByRole('button', { name: 'Close image explorer' }),
+    )
+
+    expect(
+      screen.queryByRole('dialog', { name: 'close-me.png' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows navigation buttons in ImageExplorer when there are multiple images', async () => {
+    const user = userEvent.setup()
+    await useImagesStore.getState().addImages([
+      createMockFile('first.png'),
+      createMockFile('second.png'),
+    ])
+
+    render(<MiniatureList />)
+
+    // Click the first image
+    const img = screen.getByRole('img', { name: 'first.png' })
+    await user.click(img)
+
+    // Should show prev/next buttons
+    expect(
+      screen.getByRole('button', { name: 'Previous image' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Next image' }),
+    ).toBeInTheDocument()
+  })
 })

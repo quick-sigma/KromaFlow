@@ -87,6 +87,129 @@ describe('MiniatureImageWithOptions', () => {
     expect(handleRemove).not.toHaveBeenCalled()
   })
 
+  it('disables the Process button and shows tooltip when hasOutputFormatter is false', async () => {
+    const user = userEvent.setup()
+    const handleRemove = vi.fn()
+    const handleProcess = vi.fn()
+
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={handleRemove}
+        onProcess={handleProcess}
+        hasOutputFormatter={false}
+      />,
+    )
+
+    const processButton = screen.getByRole('button', { name: 'Process' })
+    expect(processButton).toBeDisabled()
+
+    // Tooltip should be in the DOM
+    expect(
+      screen.getByRole('tooltip', {
+        name: 'Add an output step to your pipeline before processing images',
+      }),
+    ).toBeInTheDocument()
+
+    // Clicking the disabled button should not call onProcess
+    await user.click(processButton)
+    expect(handleProcess).not.toHaveBeenCalled()
+  })
+
+  it('enables the Process button when hasOutputFormatter is true', () => {
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        hasOutputFormatter={true}
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Process' }),
+    ).toBeEnabled()
+  })
+
+  it('calls onView when the miniature image is clicked', async () => {
+    const user = userEvent.setup()
+    const handleView = vi.fn()
+
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        onView={handleView}
+      />,
+    )
+
+    const img = screen.getByRole('img', { name: 'Preview' })
+    await user.click(img)
+    expect(handleView).toHaveBeenCalledOnce()
+  })
+
+  it('does not call onView when onView is not provided and image is clicked', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+      />,
+    )
+
+    const img = screen.getByRole('img', { name: 'Preview' })
+    await user.click(img)
+    // Just checking no error occurs — the click should be a no-op
+    expect(img).toBeInTheDocument()
+  })
+
+  it('calls onView when Enter key is pressed on the image', async () => {
+    const user = userEvent.setup()
+    const handleView = vi.fn()
+
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        onView={handleView}
+      />,
+    )
+
+    const img = screen.getByRole('img', { name: 'Preview' })
+    img.focus()
+    await user.keyboard('{Enter}')
+    expect(handleView).toHaveBeenCalledOnce()
+  })
+
+  it('calls onView when Space key is pressed on the image', async () => {
+    const user = userEvent.setup()
+    const handleView = vi.fn()
+
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        onView={handleView}
+      />,
+    )
+
+    const img = screen.getByRole('img', { name: 'Preview' })
+    img.focus()
+    await user.keyboard(' ')
+    expect(handleView).toHaveBeenCalledOnce()
+  })
+
   it('shows Spanish text when language is set to es', async () => {
     await act(async () => {
       await i18n.changeLanguage('es')
