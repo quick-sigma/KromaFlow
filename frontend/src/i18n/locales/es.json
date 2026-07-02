@@ -1,6 +1,8 @@
 {
   "fileInput": {
-    "loadImages": "Cargar Archivos"
+    "loadImages": "Cargar Archivos",
+    "loadOrDrag": "Carga o arrastra imágenes",
+    "supportedFormats": "PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, SVG"
   },
   "miniatureOptions": {
     "remove": "Eliminar",
@@ -13,6 +15,8 @@
     "next": "Imagen siguiente"
   },
   "miniatureList": {
+    "toProcess": "Por Procesar",
+    "processed": "Procesadas",
     "noImages": "No hay imágenes cargadas"
   },
   "pipelineEditor": {

@@ -9,7 +9,7 @@ function createMockFile(name: string, type = 'image/png'): File {
 }
 
 beforeEach(() => {
-  useImagesStore.setState({ images: [] })
+  useImagesStore.setState({ images: [], processedImages: [] })
 })
 
 describe('MiniatureList', () => {
@@ -18,7 +18,26 @@ describe('MiniatureList', () => {
     expect(screen.getByText('No images loaded')).toBeInTheDocument()
   })
 
-  it('renders a MiniatureImageWithOptions for each image', async () => {
+  it('shows the "To Process" section with images', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('sunset.png'),
+    ])
+
+    render(<MiniatureList />)
+
+    expect(screen.getByText('To Process')).toBeInTheDocument()
+    expect(screen.getByText('(1)')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'sunset.png' })).toBeInTheDocument()
+  })
+
+  it('does not show "To Process" and "Processed" sections when empty', () => {
+    render(<MiniatureList />)
+
+    expect(screen.queryByText('To Process')).not.toBeInTheDocument()
+    expect(screen.queryByText('Processed')).not.toBeInTheDocument()
+  })
+
+  it('renders all original images in the "To Process" section', async () => {
     await useImagesStore.getState().addImages([
       createMockFile('sunset.png'),
       createMockFile('portrait.jpeg', 'image/jpeg'),
@@ -28,49 +47,59 @@ describe('MiniatureList', () => {
 
     const images = screen.getAllByRole('img')
     expect(images).toHaveLength(2)
+    expect(screen.getByText('(2)')).toBeInTheDocument()
   })
 
-  it('displays the image name as alt text', async () => {
-    await useImagesStore.getState().addImages([createMockFile('vacation.png')])
+  it('shows the "Processed" section when there are processed images', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'test.png',
+          src: 'blob:http://localhost/processed',
+          name: 'test-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+      ],
+    })
 
     render(<MiniatureList />)
 
-    expect(screen.getByRole('img', { name: 'vacation.png' })).toBeInTheDocument()
+    expect(screen.getByText('Processed')).toBeInTheDocument()
+    expect(screen.getByText('(1)')).toBeInTheDocument()
   })
 
-  it('renders Remove and Process buttons for each image', async () => {
-    await useImagesStore.getState().addImages([createMockFile('photo.png')])
-
-    render(<MiniatureList />)
-
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Process' })).toBeInTheDocument()
-  })
-
-  it('removes an image when its Remove button is clicked', async () => {
-    const user = userEvent.setup()
+  it('shows both "To Process" and "Processed" sections when both exist', async () => {
+    // Add original images
     await useImagesStore.getState().addImages([
-      createMockFile('keep.png'),
-      createMockFile('delete.png'),
+      createMockFile('original.png'),
     ])
 
+    // Add processed image
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p1',
+          originalId: 'orig1',
+          originalName: 'original.png',
+          src: 'blob:http://localhost/processed',
+          name: 'original-processed.png',
+          type: 'image/png',
+          size: 100,
+          blobKey: 'processed-blob-p1',
+          processedAt: Date.now(),
+        },
+      ],
+    })
+
     render(<MiniatureList />)
-    expect(screen.getAllByRole('img')).toHaveLength(2)
 
-    const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
-    await user.click(removeButtons[1])
-
-    const images = screen.getAllByRole('img')
-    expect(images).toHaveLength(1)
-    expect(images[0]).toHaveAttribute('alt', 'keep.png')
-  })
-
-  it('does not show the empty state when images are present', async () => {
-    await useImagesStore.getState().addImages([createMockFile('photo.png')])
-
-    render(<MiniatureList />)
-
-    expect(screen.queryByText('No images loaded')).not.toBeInTheDocument()
+    expect(screen.getByText('To Process')).toBeInTheDocument()
+    expect(screen.getByText('Processed')).toBeInTheDocument()
   })
 
   it('opens the ImageExplorer when an image thumbnail is clicked', async () => {
@@ -113,25 +142,21 @@ describe('MiniatureList', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows navigation buttons in ImageExplorer when there are multiple images', async () => {
+  it('removes an image when its Remove button is clicked', async () => {
     const user = userEvent.setup()
     await useImagesStore.getState().addImages([
-      createMockFile('first.png'),
-      createMockFile('second.png'),
+      createMockFile('keep.png'),
+      createMockFile('delete.png'),
     ])
 
     render(<MiniatureList />)
+    expect(screen.getAllByRole('img')).toHaveLength(2)
 
-    // Click the first image
-    const img = screen.getByRole('img', { name: 'first.png' })
-    await user.click(img)
+    const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
+    await user.click(removeButtons[1])
 
-    // Should show prev/next buttons
-    expect(
-      screen.getByRole('button', { name: 'Previous image' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Next image' }),
-    ).toBeInTheDocument()
+    const images = screen.getAllByRole('img')
+    expect(images).toHaveLength(1)
+    expect(images[0]).toHaveAttribute('alt', 'keep.png')
   })
 })

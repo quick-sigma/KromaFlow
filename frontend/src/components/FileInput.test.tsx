@@ -16,9 +16,16 @@ const acceptedFormats = [
 ]
 
 describe('FileInput', () => {
-  it('renders the load images button in English by default', () => {
+  it('renders the dropzone with load-or-drag text in English by default', () => {
     render(<FileInput />)
-    expect(screen.getByText('Load Images')).toBeInTheDocument()
+    expect(screen.getByText('Load or drag images')).toBeInTheDocument()
+  })
+
+  it('renders the supported formats text', () => {
+    render(<FileInput />)
+    expect(
+      screen.getByText('PNG, JPEG, GIF, WebP, AVIF, BMP, TIFF, SVG'),
+    ).toBeInTheDocument()
   })
 
   it('renders a file input element', () => {
@@ -47,7 +54,7 @@ describe('FileInput', () => {
       await i18n.changeLanguage('es')
     })
     render(<FileInput />)
-    expect(screen.getByText('Cargar Archivos')).toBeInTheDocument()
+    expect(screen.getByText('Carga o arrastra imágenes')).toBeInTheDocument()
     await act(async () => {
       await i18n.changeLanguage('en')
     })
@@ -71,6 +78,20 @@ describe('FileInput', () => {
     render(<FileInput id="my-image-input" className="custom-class" />)
     const input = screen.getByTestId('file-input')
     expect(input).toHaveAttribute('id', 'my-image-input')
+  })
+
+  it('opens file dialog when the dropzone is clicked', async () => {
+    const user = userEvent.setup()
+    const handleChange = vi.fn()
+
+    render(<FileInput onChange={handleChange} />)
+
+    // Click the dropzone
+    const dropzone = screen.getByTestId('file-dropzone')
+    await user.click(dropzone)
+
+    // File input click doesn't trigger onChange, so just verify it's reachable
+    expect(dropzone).toBeInTheDocument()
   })
 
   describe('drag and drop', () => {

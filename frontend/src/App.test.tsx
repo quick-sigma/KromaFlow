@@ -6,23 +6,25 @@ import { useImagesStore } from './stores/images'
 
 /**
  * Helper — waits for the App's hydration gate to finish so the
- * main UI (title "Image Prepare") is visible.
+ * main UI is visible.
  */
 async function waitForApp() {
   return waitFor(
     () => {
-      expect(screen.getByText('Image Prepare')).toBeInTheDocument()
+      expect(
+        screen.getByText('Load or drag images'),
+      ).toBeInTheDocument()
     },
     { timeout: 5000 },
   )
 }
 
 beforeEach(() => {
-  useImagesStore.setState({ images: [] })
+  useImagesStore.setState({ images: [], processedImages: [] })
 })
 
 describe('App', () => {
-  it('renders the title', async () => {
+  it('renders the file dropzone', async () => {
     render(<App />)
     await waitForApp()
   })
@@ -30,7 +32,7 @@ describe('App', () => {
   it('renders the FileInput component', async () => {
     render(<App />)
     await waitForApp()
-    expect(screen.getByText('Load Images')).toBeInTheDocument()
+    expect(screen.getByText('Load or drag images')).toBeInTheDocument()
   })
 
   it('shows the empty state of MiniatureList', async () => {

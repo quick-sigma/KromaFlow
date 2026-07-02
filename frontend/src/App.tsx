@@ -82,8 +82,7 @@ function App() {
       <PipelineEditor />
 
       {/* ── Main content ────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col items-center gap-6 p-8">
-        <h1 className="text-4xl font-bold">Image Prepare</h1>
+      <div className="flex-1 flex flex-col gap-8 p-8">
         <FileInput onChange={handleFileChange} />
         <MiniatureList />
       </div>

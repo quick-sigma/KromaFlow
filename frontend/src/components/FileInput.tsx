@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HiUpload } from 'react-icons/hi'
 
 const IMAGE_ACCEPT = [
   'image/png',
@@ -102,7 +103,7 @@ export default function FileInput({ onChange, ...props }: FileInputProps) {
   }
 
   return (
-    <div>
+    <div className="w-full max-w-xl mx-auto">
       <input
         ref={inputRef}
         type="file"
@@ -113,22 +114,56 @@ export default function FileInput({ onChange, ...props }: FileInputProps) {
         className="hidden"
         {...props}
       />
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition cursor-pointer"
-      >
-        {t('fileInput.loadImages')}
-      </button>
 
+      {/* ── Dropzone ─────────────────────────────────────────────── */}
+      <div
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            inputRef.current?.click()
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        data-testid="file-dropzone"
+        className={`
+          relative w-full border-2 border-dashed rounded-xl p-10
+          flex flex-col items-center justify-center gap-3
+          cursor-pointer select-none
+          transition-all duration-200
+          ${
+            isDragging
+              ? 'border-blue-400 bg-blue-900/20 shadow-[inset_0_0_30px_rgba(59,130,246,0.15)]'
+              : 'border-gray-600 hover:border-gray-500 bg-gray-800/20 shadow-[inset_0_2px_8px_rgba(0,0,0,0.35)] hover:shadow-[inset_0_2px_12px_rgba(0,0,0,0.5)] hover:bg-gray-800/30'
+          }
+        `}
+      >
+        <HiUpload
+          className={`text-5xl transition-colors duration-200 ${
+            isDragging ? 'text-blue-400' : 'text-gray-500'
+          }`}
+        />
+        <p className="text-gray-300 text-lg font-medium">
+          {t('fileInput.loadOrDrag')}
+        </p>
+        <p className="text-gray-500 text-sm">
+          {t('fileInput.supportedFormats')}
+        </p>
+      </div>
+
+      {/* ── Full-screen drag overlay ─────────────────────────────── */}
       {isDragging && (
         <div
           data-testid="drop-overlay"
           className="fixed inset-0 z-50 flex items-center justify-center bg-blue-900/80 backdrop-blur-sm"
         >
-          <p className="text-2xl font-bold text-white">
-            {t('fileInput.loadImages')}
-          </p>
+          <div className="flex flex-col items-center gap-4">
+            <HiUpload className="text-6xl text-white/80" />
+            <p className="text-2xl font-bold text-white">
+              {t('fileInput.loadOrDrag')}
+            </p>
+          </div>
         </div>
       )}
     </div>
