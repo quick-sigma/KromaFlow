@@ -27,8 +27,8 @@
   "pipelineEditor": {
     "header": "Pipeline Editor",
     "emptyState": "No steps yet. Click the button below to add one.",
-    "addStep": "Add New Step",
-    "save": "Save Pipeline",
+    "addStep": "New Step",
+    "save": "Save",
     "loadPipeline": "Load Pipeline…",
     "noSavedPipelines": "No saved pipelines yet.",
     "pipelineSaved": "Pipeline saved successfully",

@@ -15,7 +15,7 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FiChevronDown } from 'react-icons/fi'
+import { FiChevronDown, FiPlus, FiGlobe } from 'react-icons/fi'
 import Button from './Button'
 import StepSearch from './StepSearch'
 import StepConfigDialog from './StepConfigDialog'
@@ -115,7 +115,7 @@ function persistSavedPipelines(pipelines: SavedPipeline[]): void {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function PipelineEditor() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [isSearchOpen, setSearchOpen] = useState(false)
 
   // Initialise local state from the persisted global pipeline store.
@@ -305,21 +305,58 @@ export default function PipelineEditor() {
   }, [pipelineSteps, setPipelineStoreSteps])
 
   return (
-    <div className="w-80 shrink-0 bg-gray-800/50 rounded-xl border border-gray-700 flex flex-col">
+    <div
+      className="w-80 shrink-0 flex flex-col max-h-screen"
+      style={{
+        backgroundColor: 'var(--bg-main)',
+        borderRight: '1px solid var(--border-subtle)',
+      }}
+    >
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-gray-700">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+      <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-subtle)' }}>
+        <h2 className="text-sm uppercase tracking-wider"
+          style={{
+            color: 'var(--text-main)',
+            fontFamily: 'var(--font-heading)',
+            fontSize: '1.1rem',
+            letterSpacing: '0.05em',
+          }}>
           {t('pipelineEditor.header')}
         </h2>
+        <button
+          type="button"
+          onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'es' : 'en')}
+          className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors cursor-pointer text-xs"
+          style={{
+            color: 'var(--text-muted)',
+            fontFamily: 'var(--font-ui)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+          aria-label="Switch language"
+        >
+          <FiGlobe className="w-3.5 h-3.5" />
+          <span>{i18n.language === 'en' ? 'EN' : 'ES'}</span>
+        </button>
       </div>
 
       {/* ── Pipeline dropdown ─────────────────────────────────────── */}
-      <div className="px-4 py-2 border-b border-gray-700">
+      <div className="px-6 py-3 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
         <div className="relative" ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setDropdownOpen((o) => !o)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm bg-gray-700/50 rounded-lg text-gray-300 hover:bg-gray-700 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer
+                       focus-within:border-[var(--brand-primary)] hover:border-[var(--brand-primary)]"
+            style={{
+              backgroundColor: 'rgba(21, 21, 21, 0.8)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-muted)',
+              borderRadius: '8px',
+              fontFamily: 'var(--font-ui)',
+              fontSize: '0.9rem',
+              fontWeight: 400,
+            }}
           >
             <span className="truncate">
               {pipelineName || t('pipelineEditor.loadPipeline')}
@@ -332,23 +369,45 @@ export default function PipelineEditor() {
           </button>
 
           {dropdownOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+            <div
+              className="absolute top-full left-0 right-0 mt-1 z-20 rounded-lg shadow-xl overflow-hidden"
+              style={{
+                backgroundColor: 'var(--bg-main)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
               {savedPipelines.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-gray-500">
+                <div className="px-3 py-2 text-sm" style={{ color: 'var(--text-muted)' }}>
                   {t('pipelineEditor.noSavedPipelines')}
                 </div>
               ) : (
                 savedPipelines.map((sp) => (
                   <div
                     key={sp.name}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 cursor-pointer transition-colors"
+                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
                     onClick={() => handleLoadPipeline(sp.name)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-card)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
                   >
                     <span className="truncate">{sp.name}</span>
                     <button
                       type="button"
                       onClick={(e) => handleDeleteSavedPipeline(sp.name, e)}
-                      className="shrink-0 p-0.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                      className="shrink-0 p-0.5 rounded transition-colors cursor-pointer"
+                      style={{ color: 'var(--text-muted)' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--brand-accent)'
+                        e.currentTarget.style.backgroundColor = 'rgba(242,95,92,0.1)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-muted)'
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }}
                       aria-label={t('pipelineEditor.confirmDelete', {
                         name: sp.name,
                       })}
@@ -378,7 +437,7 @@ export default function PipelineEditor() {
       {/* ── Pipeline flow graph ──────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         {pipelineSteps.length === 0 && (
-          <p className="text-sm text-gray-500 text-center py-8 px-3">
+          <p className="text-sm text-center py-8 px-3" style={{ color: 'var(--text-muted)' }}>
             {t('pipelineEditor.emptyState')}
           </p>
         )}
@@ -390,26 +449,54 @@ export default function PipelineEditor() {
       </div>
 
       {/* ── Bottom buttons: Add Step + Save ───────────────────────── */}
-      <div className="p-3 border-t border-gray-700 grid grid-cols-2 gap-2">
+      <div className="px-6 py-4 pb-6 border-t grid grid-cols-2 gap-3"
+        style={{ borderColor: 'var(--border-subtle)' }}>
         <div className="relative group/tooltip">
-          <Button
-            variant="primary"
+          <button
+            type="button"
             disabled={isProcessing}
             onClick={() => setSearchOpen(true)}
+            className="w-full px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer
+                       disabled:opacity-40 disabled:cursor-not-allowed
+                       flex items-center justify-center gap-2"
+            style={{
+              border: '1.5px solid var(--brand-primary)',
+              color: 'var(--brand-primary)',
+              background: 'transparent',
+              fontFamily: 'var(--font-ui)',
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+            }}
+            onMouseEnter={(e) => {
+              if (!isProcessing) {
+                e.currentTarget.style.background = 'var(--brand-primary)'
+                e.currentTarget.style.color = '#ffffff'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isProcessing) {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = 'var(--brand-primary)'
+              }
+            }}
           >
+            <FiPlus className="w-4 h-4" />
             {t('pipelineEditor.addStep')}
-          </Button>
+          </button>
           {isProcessing && (
             <div
               role="tooltip"
               className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
-                         px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg
+                         px-3 py-1.5 text-white text-xs rounded-lg
                          shadow-lg whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100
                          transition-opacity pointer-events-none z-50"
+              style={{ backgroundColor: 'var(--bg-main)' }}
             >
               <div
                 className="absolute top-full left-1/2 -translate-x-1/2
-                            border-4 border-transparent border-t-gray-900"
+                            border-4 border-transparent"
+                style={{ borderTopColor: 'var(--bg-main)' }}
               />
               {t('queue.pipelineDisabledTooltip')}
             </div>
@@ -418,25 +505,44 @@ export default function PipelineEditor() {
             <div
               role="tooltip"
               className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
-                         px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg
+                         px-3 py-1.5 text-white text-xs rounded-lg
                          shadow-lg whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100
                          transition-opacity pointer-events-none z-50"
+              style={{ backgroundColor: 'var(--bg-main)' }}
             >
               <div
                 className="absolute top-full left-1/2 -translate-x-1/2
-                            border-4 border-transparent border-t-gray-900"
+                            border-4 border-transparent"
+                style={{ borderTopColor: 'var(--bg-main)' }}
               />
               {t('pipelineEditor.missingOutputTooltip')}
             </div>
           )}
         </div>
-        <Button
-          variant="primary"
+        <button
+          type="button"
           disabled={pipelineSteps.length === 0 || isProcessing}
           onClick={handleSavePipeline}
+          className="w-full px-4 py-2 rounded-lg text-white transition-all duration-200 cursor-pointer
+                     disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: 'var(--brand-primary)',
+            fontFamily: 'var(--font-ui)',
+            fontSize: '0.9rem',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+          }}
+          onMouseEnter={(e) => {
+            if (!(pipelineSteps.length === 0 || isProcessing)) {
+              e.currentTarget.style.filter = 'brightness(1.15)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.filter = 'none'
+          }}
         >
           {t('pipelineEditor.save')}
-        </Button>
+        </button>
       </div>
 
       {/* ── Floating search overlay ───────────────────────────────── */}

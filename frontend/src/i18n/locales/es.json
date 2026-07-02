@@ -27,8 +27,8 @@
   "pipelineEditor": {
     "header": "Editor de Pipeline",
     "emptyState": "Aún no hay pasos. Haz clic en el botón para agregar uno.",
-    "addStep": "Agregar Paso",
-    "save": "Guardar Pipeline",
+    "addStep": "Nuevo Paso",
+    "save": "Guardar",
     "loadPipeline": "Cargar Pipeline…",
     "noSavedPipelines": "No hay pipelines guardados aún.",
     "pipelineSaved": "Pipeline guardado exitosamente",

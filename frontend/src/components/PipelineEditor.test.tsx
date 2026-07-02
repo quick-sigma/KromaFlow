@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PipelineEditor from './PipelineEditor'
 import { useStepsStore, type StepInfo } from '../stores/steps'
@@ -79,11 +79,13 @@ describe('PipelineEditor', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders the Add New Step button with primary variant', () => {
+  it('renders the New Step button with ghost outline style', () => {
     render(<PipelineEditor />)
-    const button = screen.getByRole('button', { name: 'Add New Step' })
+    const button = screen.getByRole('button', { name: 'New Step' })
     expect(button).toBeInTheDocument()
-    expect(button.className).toContain('bg-blue-600')
+    // The New Step button is now a ghost/outline button
+    expect(button.style.border).toContain('1.5px')
+    expect(button.style.background).toBe('transparent')
   })
 
   it('shows empty state when no steps are selected', () => {
@@ -93,11 +95,11 @@ describe('PipelineEditor', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens the StepSearch when Add New Step is clicked', async () => {
+  it('opens the StepSearch when New Step is clicked', async () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
 
     expect(
       screen.getByPlaceholderText('Search steps…'),
@@ -108,7 +110,7 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
@@ -121,11 +123,11 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('avif-output-formatter')
     await user.click(screen.getByText('avif-output-formatter'))
 
@@ -138,11 +140,11 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('avif-output-formatter')
     await user.click(screen.getByText('avif-output-formatter'))
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
@@ -156,11 +158,11 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('avif-output-formatter')
     await user.click(screen.getByText('avif-output-formatter'))
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('Processors')
 
     expect(
@@ -174,7 +176,7 @@ describe('PipelineEditor', () => {
     )
   })
 
-  it('shows a tooltip on the Add New Step button when pipeline has no output formatter', () => {
+  it('shows a tooltip on the New Step button when pipeline has no output formatter', () => {
     render(<PipelineEditor />)
 
     // With empty pipeline (no output formatter), tooltip should be visible
@@ -185,12 +187,12 @@ describe('PipelineEditor', () => {
     ).toBeInTheDocument()
   })
 
-  it('hides the tooltip on the Add New Step button when an output formatter is present', async () => {
+  it('hides the tooltip on the New Step button when an output formatter is present', async () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
     // Add an output formatter
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('avif-output-formatter')
     await user.click(screen.getByText('avif-output-formatter'))
 
@@ -206,11 +208,11 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('avif-output-formatter')
     await user.click(screen.getByText('avif-output-formatter'))
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     expect(
       await screen.findByText(/Some steps are hidden/i),
     ).toBeInTheDocument()
@@ -223,7 +225,7 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add a step
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
     expect(screen.getByText('watermark-remover')).toBeInTheDocument()
@@ -250,7 +252,7 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add a step with configurable props (watermark-remover has 'grayscale')
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
@@ -271,7 +273,7 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add watermark-remover (has boolean "grayscale" field)
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
@@ -291,7 +293,7 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add watermark-remover
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
@@ -301,8 +303,9 @@ describe('PipelineEditor', () => {
     )
     await screen.findByText(/Configure watermark-remover/i)
 
-    // Click Save
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    // Click Save — scope to the dialog since the pipeline also has a "Save" button now
+    const configDialog = screen.getByRole('dialog', { name: /configure watermark-remover/i })
+    await user.click(within(configDialog).getByRole('button', { name: 'Save' }))
 
     // Dialog should close
     expect(
@@ -314,7 +317,7 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
@@ -338,13 +341,13 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add watermark-remover once
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
     expect(screen.getByText('watermark-remover')).toBeInTheDocument()
 
     // Open search — watermark-remover should be hidden from results
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('Processors')
 
     // Check within the search results container (not the whole DOM,
@@ -359,12 +362,12 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add a step
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
     // Open search again — notice should appear
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     expect(
       await screen.findByText(/Some steps are hidden/i),
     ).toBeInTheDocument()
@@ -374,7 +377,7 @@ describe('PipelineEditor', () => {
 
   it('shows Save Pipeline button disabled when there are no steps', () => {
     render(<PipelineEditor />)
-    const saveBtn = screen.getByRole('button', { name: 'Save Pipeline' })
+    const saveBtn = screen.getByRole('button', { name: 'Save' })
     expect(saveBtn).toBeDisabled()
   })
 
@@ -382,11 +385,11 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
-    const saveBtn = screen.getByRole('button', { name: 'Save Pipeline' })
+    const saveBtn = screen.getByRole('button', { name: 'Save' })
     expect(saveBtn).toBeEnabled()
   })
 
@@ -395,12 +398,12 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add a step first
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
     // Click Save Pipeline — should open the dialog, not save immediately
-    await user.click(screen.getByRole('button', { name: 'Save Pipeline' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     // The save dialog should appear with an input field
     expect(
@@ -416,20 +419,21 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add a step first
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
     // Click Save Pipeline to open the dialog
-    await user.click(screen.getByRole('button', { name: 'Save Pipeline' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     // Type a custom name
     const input = screen.getByPlaceholderText('Enter pipeline name…')
     await user.clear(input)
     await user.type(input, 'My Custom Pipeline')
 
-    // Click Save in the dialog
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    // Click Save in the dialog — scope to the dialog since the pipeline also has a "Save" button
+    const saveDialog = screen.getByRole('dialog', { name: 'Save Pipeline' })
+    await user.click(within(saveDialog).getByRole('button', { name: 'Save' }))
 
     // The dropdown button should show the custom name
     await waitFor(() => {
@@ -452,19 +456,20 @@ describe('PipelineEditor', () => {
     render(<PipelineEditor />)
 
     // Add a step first
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
     // Click Save Pipeline to open the dialog
-    await user.click(screen.getByRole('button', { name: 'Save Pipeline' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     // Clear the name field and leave it empty
     const input = screen.getByPlaceholderText('Enter pipeline name…')
     await user.clear(input)
 
-    // Click Save in the dialog
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    // Click Save in the dialog — scope to the dialog since the pipeline also has a "Save" button
+    const saveDialog = screen.getByRole('dialog', { name: 'Save Pipeline' })
+    await user.click(within(saveDialog).getByRole('button', { name: 'Save' }))
 
     // The dropdown button should show the auto-generated name
     await waitFor(() => {
@@ -486,12 +491,12 @@ describe('PipelineEditor', () => {
     const user = userEvent.setup()
     render(<PipelineEditor />)
 
-    await user.click(screen.getByRole('button', { name: 'Add New Step' }))
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
     await screen.findByText('watermark-remover')
     await user.click(screen.getByText('watermark-remover'))
 
     // Open save dialog
-    await user.click(screen.getByRole('button', { name: 'Save Pipeline' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(
       screen.getByRole('dialog', { name: 'Save Pipeline' }),
     ).toBeInTheDocument()
@@ -628,6 +633,120 @@ describe('PipelineEditor', () => {
     ).not.toBeInTheDocument()
   })
 
+  // ── Active State Verification (Cyber-Amethyst spec) ───────────────────
+
+  it('marks the first processor step card with data-active="true"', async () => {
+    const user = userEvent.setup()
+    render(<PipelineEditor />)
+
+    // Add a processor step (should be the active one)
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('watermark-remover')
+    await user.click(screen.getByText('watermark-remover'))
+
+    // Also add the output formatter
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('avif-output-formatter')
+    await user.click(screen.getByText('avif-output-formatter'))
+
+    // The step card with data-active="true" should be the first processor
+    const activeCards = document.querySelectorAll('[data-active="true"]')
+    expect(activeCards.length).toBeGreaterThanOrEqual(1)
+
+    // The active card should contain the processor step name
+    const activeCard = activeCards[0]
+    expect(activeCard?.textContent).toContain('watermark-remover')
+  })
+
+  it('does not mark the output formatter step with data-active="true"', async () => {
+    const user = userEvent.setup()
+    render(<PipelineEditor />)
+
+    // Add an output formatter (should NOT be marked active)
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('avif-output-formatter')
+    await user.click(screen.getByText('avif-output-formatter'))
+
+    // No card should have data-active="true" when only output formatter is present
+    const activeCards = document.querySelectorAll('[data-active="true"]')
+    expect(activeCards.length).toBe(0)
+  })
+
+  it('marks the first step with data-active even when multiple processors exist', async () => {
+    const user = userEvent.setup()
+    render(<PipelineEditor />)
+
+    // Add two processor steps
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('watermark-remover')
+    await user.click(screen.getByText('watermark-remover'))
+
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('test-processor')
+    await user.click(screen.getByText('test-processor'))
+
+    // Add output formatter
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('avif-output-formatter')
+    await user.click(screen.getByText('avif-output-formatter'))
+
+    // Exactly one card should be marked active — the first processor
+    const activeCards = document.querySelectorAll('[data-active="true"]')
+    expect(activeCards.length).toBe(1)
+    expect(activeCards[0]?.textContent).toContain('watermark-remover')
+  })
+
+  // ── Layout assertion: file rows use horizontal flex container ──────────
+
+  it('renders step cards as block-level elements with proper structure', async () => {
+    const user = userEvent.setup()
+    render(<PipelineEditor />)
+
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('watermark-remover')
+    await user.click(screen.getByText('watermark-remover'))
+
+    const stepCard = document.querySelector('[data-active]')
+    expect(stepCard).toBeInTheDocument()
+    // Verify it has flex alignment internally
+    expect(stepCard?.querySelector('.flex')).toBeInTheDocument()
+  })
+
+  // ── Typography inheritance tests ──────────────────────────────────────
+
+  it('renders the Pipeline Editor header with Varela heading font via CSS variable', () => {
+    render(<PipelineEditor />)
+    const header = screen.getByText('Pipeline Editor')
+    expect(header).toBeInTheDocument()
+    // Font is applied via CSS variable var(--font-heading) pointing to 'Varela', sans-serif
+    expect(header.style.fontFamily).toContain('var(--font-heading)')
+  })
+
+  it('renders dropdown button with UI font via CSS variable', () => {
+    render(<PipelineEditor />)
+    const dropdown = screen.getByRole('button', { name: 'Load Pipeline…' })
+    expect(dropdown).toBeInTheDocument()
+    expect(dropdown.style.fontFamily).toContain('var(--font-ui)')
+  })
+
+  it('renders the Save button with UI font via CSS variable', async () => {
+    const user = userEvent.setup()
+    render(<PipelineEditor />)
+
+    await user.click(screen.getByRole('button', { name: 'New Step' }))
+    await screen.findByText('watermark-remover')
+    await user.click(screen.getByText('watermark-remover'))
+
+    const saveBtn = screen.getByRole('button', { name: 'Save' })
+    expect(saveBtn.style.fontFamily).toContain('var(--font-ui)')
+  })
+
+  it('renders the New Step button with UI font via CSS variable', () => {
+    render(<PipelineEditor />)
+    const addBtn = screen.getByRole('button', { name: 'New Step' })
+    expect(addBtn.style.fontFamily).toContain('var(--font-ui)')
+  })
+
   it('keeps Save button disabled after loading a pipeline with no steps', async () => {
     // Save an empty pipeline
     const savedPipeline = {
@@ -650,7 +769,7 @@ describe('PipelineEditor', () => {
     await user.click(screen.getByText('Empty Pipeline'))
 
     // Save should still be disabled
-    const saveBtn = screen.getByRole('button', { name: 'Save Pipeline' })
+    const saveBtn = screen.getByRole('button', { name: 'Save' })
     expect(saveBtn).toBeDisabled()
   })
 })
