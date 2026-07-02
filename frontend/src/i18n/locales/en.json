@@ -5,5 +5,8 @@
   "miniatureOptions": {
     "remove": "Remove",
     "process": "Process"
+  },
+  "miniatureList": {
+    "noImages": "No images loaded"
   }
 }
