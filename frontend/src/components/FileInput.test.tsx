@@ -72,4 +72,148 @@ describe('FileInput', () => {
     const input = screen.getByTestId('file-input')
     expect(input).toHaveAttribute('id', 'my-image-input')
   })
+
+  describe('drag and drop', () => {
+    function createMockDataTransfer(files: File[]) {
+      return {
+        files,
+        types: ['Files'],
+        getData: () => '',
+        items: files.map((f) => ({
+          kind: 'file',
+          type: f.type,
+          getAsFile: () => f,
+        })),
+      }
+    }
+
+    function fireDragEvent(
+      target: EventTarget,
+      type: string,
+      dataTransfer?: Record<string, unknown>,
+    ) {
+      const event = new Event(type, { bubbles: true })
+      Object.defineProperty(event, 'dataTransfer', {
+        value: dataTransfer ?? null,
+        writable: false,
+      })
+      target.dispatchEvent(event)
+    }
+
+    it('shows a full-screen drop overlay when a file is dragged over the document', () => {
+      render(<FileInput />)
+
+      act(() => {
+        fireDragEvent(
+          document.body,
+          'dragenter',
+          createMockDataTransfer([new File([''], 'test.png', { type: 'image/png' })]),
+        )
+      })
+
+      expect(screen.getByTestId('drop-overlay')).toBeInTheDocument()
+    })
+
+    it('hides the drop overlay on dragleave', () => {
+      render(<FileInput />)
+
+      act(() => {
+        fireDragEvent(
+          document.body,
+          'dragenter',
+          createMockDataTransfer([new File([''], 'test.png', { type: 'image/png' })]),
+        )
+      })
+      act(() => {
+        fireDragEvent(document.body, 'dragleave')
+      })
+
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+    })
+
+    it('hides the drop overlay on drop', () => {
+      render(<FileInput />)
+
+      act(() => {
+        fireDragEvent(
+          document.body,
+          'dragenter',
+          createMockDataTransfer([new File([''], 'test.png', { type: 'image/png' })]),
+        )
+      })
+      act(() => {
+        fireDragEvent(
+          document.body,
+          'drop',
+          createMockDataTransfer([new File([''], 'test.png', { type: 'image/png' })]),
+        )
+      })
+
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+    })
+
+    it('calls onChange when image files are dropped', () => {
+      const handleChange = vi.fn()
+      render(<FileInput onChange={handleChange} />)
+
+      act(() => {
+        fireDragEvent(
+          document.body,
+          'drop',
+          createMockDataTransfer([new File([''], 'photo.png', { type: 'image/png' })]),
+        )
+      })
+
+      expect(handleChange).toHaveBeenCalledOnce()
+    })
+
+    it('calls onChange with multiple files when several images are dropped', () => {
+      const handleChange = vi.fn()
+      render(<FileInput onChange={handleChange} />)
+
+      act(() => {
+        fireDragEvent(
+          document.body,
+          'drop',
+          createMockDataTransfer([
+            new File([''], 'a.png', { type: 'image/png' }),
+            new File([''], 'b.jpeg', { type: 'image/jpeg' }),
+          ]),
+        )
+      })
+
+      const event = handleChange.mock.calls[0][0] as React.ChangeEvent<HTMLInputElement>
+      expect(event.target.files).toHaveLength(2)
+    })
+
+    it('ignores non-image files on drop', () => {
+      const handleChange = vi.fn()
+      render(<FileInput onChange={handleChange} />)
+
+      act(() => {
+        fireDragEvent(
+          document.body,
+          'drop',
+          createMockDataTransfer([new File([''], 'readme.txt', { type: 'text/plain' })]),
+        )
+      })
+
+      expect(handleChange).not.toHaveBeenCalled()
+    })
+
+    it('accepts drop events from anywhere on the document', () => {
+      const handleChange = vi.fn()
+      render(<FileInput onChange={handleChange} />)
+
+      act(() => {
+        fireDragEvent(
+          document.documentElement,
+          'drop',
+          createMockDataTransfer([new File([''], 'bg.png', { type: 'image/png' })]),
+        )
+      })
+
+      expect(handleChange).toHaveBeenCalledOnce()
+    })
+  })
 })
