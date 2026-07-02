@@ -203,3 +203,22 @@ class TestProcessImageEndpoint:
         instructions = {"remove_watermark": False}
         response = self._upload(instructions=instructions)
         assert response.status_code == 200
+
+    # ── AVIF output ───────────────────────────────────────────────────
+
+    def test_avif_output_success(self):
+        """AVIF output returns correct content type."""
+        response = self._upload(output_format="avif")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/avif"
+        result = Image.open(BytesIO(response.content))
+        assert result.format == "AVIF"
+
+    def test_avif_output_with_instructions(self):
+        """AVIF with resize instructions works correctly."""
+        instructions = {"resize": {"width": 50, "height": 50}}
+        response = self._upload(instructions=instructions, output_format="avif")
+        assert response.status_code == 200
+        result = Image.open(BytesIO(response.content))
+        assert result.size == (50, 50)
+        assert result.format == "AVIF"

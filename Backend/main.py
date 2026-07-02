@@ -13,10 +13,8 @@ from PIL import Image
 
 from base import Processor, OutputFormatter
 from models import Order, ProcessingInstructions
-from output_formatter import (
-    ImageOutputFormatter,
-    SUPPORTED_FORMATS,
-)
+from output_formatter import ImageOutputFormatter
+from avif_output_formatter import AVIFOutputFormatter
 from processor import ImageProcessor, process_order
 
 # Watermark remover is imported lazily (optional dependency).
@@ -39,7 +37,25 @@ _processing_lock = asyncio.Lock()
 # Module-level instances of the processing abstractions.
 # These can be overridden via dependency injection if needed.
 _processor: Processor = ImageProcessor()
-_formatter: OutputFormatter = ImageOutputFormatter()
+
+# Formatter registry — each output format maps to the appropriate
+# OutputFormatter implementation.  All formats handled by the default
+# ImageOutputFormatter share a single instance; AVIF has its own.
+_image_formatter: OutputFormatter = ImageOutputFormatter()
+_avif_formatter: OutputFormatter = AVIFOutputFormatter()
+
+_formatters: dict[str, OutputFormatter] = {
+    "png": _image_formatter,
+    "jpeg": _image_formatter,
+    "webp": _image_formatter,
+    "gif": _image_formatter,
+    "bmp": _image_formatter,
+    "tiff": _image_formatter,
+    "avif": _avif_formatter,
+}
+
+# Convenience: all recognised format strings (including aliases).
+_RECOGNISED_FORMATS: set[str] = set(_formatters.keys()) | {"jpg", "tif"}
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────
@@ -103,11 +119,11 @@ async def process_image_endpoint(
 
     # ── Resolve output format ─────────────────────────────────────────
     fmt = output_format.lower()
-    if fmt not in SUPPORTED_FORMATS and fmt not in ("jpg", "tif"):
+    if fmt not in _RECOGNISED_FORMATS:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported output format: {output_format}. "
-            f"Supported: {', '.join(sorted(SUPPORTED_FORMATS))}",
+            f"Supported: {', '.join(sorted(_RECOGNISED_FORMATS))}",
         )
 
     # ── Open image with Pillow ────────────────────────────────────────
@@ -149,8 +165,14 @@ async def process_image_endpoint(
                 image_to_process, order.instructions
             )
 
-            # 3. Output formatting
-            data, content_type = _formatter.format_output(
+            # 3. Output formatting — route to the right formatter
+            formatter = _formatters.get(order.output_format)
+            if formatter is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No formatter registered for: {order.output_format}",
+                )
+            data, content_type = formatter.format_output(
                 processed_image,
                 order.output_format,
                 order.instructions.quality,
