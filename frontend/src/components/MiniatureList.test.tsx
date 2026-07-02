@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useImagesStore } from '../stores/images'
+import { useQueueStore } from '../stores/processing-queue'
 import MiniatureList from './MiniatureList'
+import { act } from 'react'
 
 const API_BASE = 'http://localhost:55558'
 
@@ -12,6 +14,7 @@ function createMockFile(name: string, type = 'image/png'): File {
 
 beforeEach(() => {
   useImagesStore.setState({ images: [], processedImages: [] })
+  useQueueStore.setState({ entries: {}, stats: { totalEnqueued: 0, totalCompleted: 0, totalFailed: 0, pendingCount: 0, currentJobId: null }, connected: false, globalProgress: 0 })
   vi.restoreAllMocks()
 })
 
@@ -231,14 +234,27 @@ describe('MiniatureList', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the Process All button as disabled while processing', async () => {
-    useImagesStore.setState({ processingState: 'processing' })
+  it('shows the Process All button as disabled while queueing', async () => {
+    useQueueStore.setState({
+      entries: {
+        'mock-id': {
+          imageId: 'mock-id',
+          jobId: 'job-1',
+          status: 'processing',
+          progress: 50,
+          error: null,
+          resultId: null,
+          resultName: null,
+        },
+      },
+      connected: true,
+    })
     await useImagesStore.getState().addImages([
       createMockFile('a.png'),
     ])
     render(<MiniatureList />)
 
-    const btn = screen.getByRole('button', { name: /processing/i })
+    const btn = screen.getByRole('button', { name: /enqueuing/i })
     expect(btn).toBeDisabled()
   })
 

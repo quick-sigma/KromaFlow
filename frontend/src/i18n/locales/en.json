@@ -63,5 +63,14 @@
     "save": "Save",
     "cancel": "Cancel",
     "close": "Close"
+  },
+  "queue": {
+    "enqueued": "Enqueued",
+    "processing": "Processing",
+    "reprocess": "Reprocess",
+    "failed": "Failed",
+    "enqueuing": "Enqueuing…",
+    "globalProgress": "Processing Queue",
+    "pipelineDisabledTooltip": "Pipeline editing is disabled while images are being processed"
   }
 }

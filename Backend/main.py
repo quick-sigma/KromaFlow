@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from PIL import Image
@@ -21,7 +24,17 @@ from step import Pipeline, get_registered_steps, _step_id_map
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Image Prepare API")
+# ── Lifespan ──────────────────────────────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Configure the queue manager on startup."""
+    _configure_queue_manager()
+    yield
+
+
+app = FastAPI(title="Image Prepare API", lifespan=lifespan)
 
 # Allow CORS for the frontend dev server
 app.add_middleware(
@@ -34,6 +47,159 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Queue manager (lazy-imported to avoid circular deps at module level) ────
+
+_qm: object | None = None
+
+
+def _get_queue_manager():
+    """Return the singleton QueueManager, initialised on first call."""
+    global _qm
+    if _qm is None:
+        from queue_manager import QueueManager
+        _qm = QueueManager.get_instance()
+    return _qm
+
+
+def _configure_queue_manager():
+    """Wire up the queue manager's result callback.
+
+    The callback stores processed images to disk using the same storage
+    logic as the synchronous ``POST /api/images/process`` endpoint.
+    """
+    qm = _get_queue_manager()
+
+    async def store_result(job, image_bytes, content_type):
+        """Store processed result on disk and return (result_id, display_name)."""
+        result_id = str(uuid.uuid4())
+        ext = _ext_from_content_type(content_type)
+        file_path = STORAGE_DIR / f"{result_id}{ext}"
+
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        file_path.write_bytes(image_bytes)
+
+        original_name = job.original_name
+        stem = Path(original_name).stem
+        display_name = f"{stem}-processed{ext}"
+
+        _processed_metadata[result_id] = {
+            "originalName": original_name,
+            "displayName": display_name,
+            "type": content_type,
+            "size": len(image_bytes),
+            "ext": ext,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+        _save_metadata(_processed_metadata)
+
+        return result_id, display_name
+
+    qm.set_result_callback(store_result)
+
+
+# ── WebSocket endpoint ──────────────────────────────────────────────────────
+
+
+@app.websocket("/ws")
+async def queue_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time queue status updates.
+
+    On connection the client receives a full ``state_sync`` message with
+    all current jobs and queue statistics.  Thereafter it receives
+    ``job_enqueued``, ``job_processing``, ``job_update``, ``job_completed``
+    and ``job_failed`` messages as jobs progress through the queue.
+    """
+    qm = _get_queue_manager()
+    await qm.connect(websocket)
+    try:
+        # Keep the connection open — this coroutine stays alive until the
+        # client disconnects.
+        while True:
+            # We don't expect messages from the client, but we need to
+            # keep reading to detect disconnects.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await qm.disconnect(websocket)
+
+
+# ── Queue enqueue endpoint ──────────────────────────────────────────────────
+
+
+@app.post("/api/queue/enqueue")
+async def enqueue_for_processing(
+    image: UploadFile = File(...),
+    pipeline: str = Form(...),
+):
+    """Add an image to the processing queue.
+
+    Unlike ``POST /api/images/process`` which processes synchronously,
+    this endpoint adds the job to a queue and returns immediately with a
+    ``jobId``.  The frontend should listen on the ``/ws`` WebSocket for
+    status updates.
+
+    Returns
+    -------
+    JSON with ``jobId``, ``status`` ("enqueued"), and ``queuePosition``.
+    """
+    # ── Parse pipeline JSON ───────────────────────────────────────────
+    try:
+        steps_data = json.loads(pipeline)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid JSON in pipeline field: {exc}",
+        )
+
+    if not isinstance(steps_data, list):
+        raise HTTPException(
+            status_code=422,
+            detail="Pipeline must be a JSON array of step definitions",
+        )
+
+    if not steps_data:
+        raise HTTPException(
+            status_code=422,
+            detail="Pipeline must contain at least one step",
+        )
+
+    # ── Quick validation: check step IDs exist ────────────────────────
+    for item in steps_data:
+        if not isinstance(item, dict) or "step_id" not in item:
+            raise HTTPException(
+                status_code=422,
+                detail="Each pipeline step must be an object with a 'step_id' field",
+            )
+        step_id = item["step_id"]
+        step_cls = _step_id_map.get(step_id)
+        if step_cls is None:
+            available = sorted(_step_id_map)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown step ID {step_id!r}. Available: {available}",
+            )
+
+    # ── Read image data ───────────────────────────────────────────────
+    contents = await image.read()
+
+    content_type = image.content_type or "image/png"
+    original_name = image.filename or "image.png"
+
+    # ── Enqueue job ───────────────────────────────────────────────────
+    qm = _get_queue_manager()
+    job_id = await qm.enqueue(
+        image_data=contents,
+        original_name=original_name,
+        pipeline=steps_data,
+        content_type=content_type,
+    )
+
+    return {
+        "jobId": job_id,
+        "status": "enqueued",
+    }
 
 
 # ── Blob storage ─────────────────────────────────────────────────────────────

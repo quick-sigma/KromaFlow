@@ -91,6 +91,8 @@ type ImageState = {
   processImage: (id: string) => void
   processAllImages: () => Promise<void>
   clearImages: () => Promise<void>
+  /** Adds a processed image entry from the queue system (called by QueueStore) */
+  addProcessedImageFromQueue: (entry: ProcessedImageEntry) => void
   /** Clears processing status back to idle */
   clearProcessingStatus: () => void
   /**
@@ -467,6 +469,12 @@ export const useImagesStore = create<ImageState>()(
           processingState: 'idle',
           processingError: null,
         })
+      },
+
+      addProcessedImageFromQueue: (entry: ProcessedImageEntry) => {
+        set((state) => ({
+          processedImages: [...state.processedImages, entry],
+        }))
       },
 
       clearProcessingStatus: () => {

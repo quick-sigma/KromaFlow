@@ -228,4 +228,95 @@ describe('MiniatureImageWithOptions', () => {
       await i18n.changeLanguage('en')
     })
   })
+
+  // ── Queue state: enqueued ──────────────────────────────────────────
+
+  it('shows "Enqueued" badge when queueStatus is enqueued', () => {
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        queueStatus="enqueued"
+      />,
+    )
+
+    expect(screen.getByText('Enqueued')).toBeInTheDocument()
+    // Buttons should NOT be rendered in enqueued state
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Process' })).not.toBeInTheDocument()
+  })
+
+  // ── Queue state: processing ────────────────────────────────────────
+
+  it('shows progress bar when queueStatus is processing', () => {
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        queueStatus="processing"
+        progress={42}
+      />,
+    )
+
+    expect(screen.getByText('Processing 42%')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Process' })).not.toBeInTheDocument()
+  })
+
+  // ── Queue state: completed ─────────────────────────────────────────
+
+  it('shows Reprocess button when queueStatus is completed', () => {
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        queueStatus="completed"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reprocess' })).toBeInTheDocument()
+  })
+
+  it('calls onProcess when Reprocess button is clicked for completed state', async () => {
+    const user = userEvent.setup()
+    const handleProcess = vi.fn()
+
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={handleProcess}
+        queueStatus="completed"
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }))
+    expect(handleProcess).toHaveBeenCalledOnce()
+  })
+
+  // ── Queue state: failed ────────────────────────────────────────────
+
+  it('shows failed indicator when queueStatus is failed', () => {
+    render(
+      <MiniatureImageWithOptions
+        src={testSrc}
+        alt="Preview"
+        onRemove={vi.fn()}
+        onProcess={vi.fn()}
+        queueStatus="failed"
+      />,
+    )
+
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reprocess' })).toBeInTheDocument()
+  })
 })

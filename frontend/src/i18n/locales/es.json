@@ -63,5 +63,14 @@
     "save": "Guardar",
     "cancel": "Cancelar",
     "close": "Cerrar"
+  },
+  "queue": {
+    "enqueued": "En Cola",
+    "processing": "Procesando",
+    "reprocess": "Reprocesar",
+    "failed": "Falló",
+    "enqueuing": "Encolando…",
+    "globalProgress": "Cola de Procesamiento",
+    "pipelineDisabledTooltip": "La edición del pipeline está desactivada mientras se procesan imágenes"
   }
 }

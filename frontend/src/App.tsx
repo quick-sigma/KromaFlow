@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import FileInput from './components/FileInput'
 import MiniatureList from './components/MiniatureList'
 import PipelineEditor from './components/PipelineEditor'
 import { useImagesStore } from './stores/images'
 import { usePipelineStore } from './stores/pipeline'
+import { useQueueStore } from './stores/processing-queue'
 import { syncEngine } from './stores/sync-engine'
 
 /**
@@ -63,7 +65,24 @@ function LoadingScreen() {
 
 function App() {
   const ready = useHydrationGate()
+  const { t } = useTranslation()
   const addImages = useImagesStore((state) => state.addImages)
+
+  // Queue WebSocket + progress
+  const connectWebSocket = useQueueStore((state) => state.connectWebSocket)
+  const disconnectWebSocket = useQueueStore((state) => state.disconnectWebSocket)
+  const stats = useQueueStore((state) => state.stats)
+  const globalProgress = useQueueStore((state) => state.globalProgress)
+  const entries = useQueueStore((state) => state.entries)
+
+  useEffect(() => {
+    if (ready) {
+      connectWebSocket()
+    }
+    return () => {
+      disconnectWebSocket()
+    }
+  }, [ready, connectWebSocket, disconnectWebSocket])
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files
@@ -76,15 +95,54 @@ function App() {
     return <LoadingScreen />
   }
 
+  // Compute total jobs and completed jobs for the global progress bar
+  const entryValues = Object.values(entries)
+  const totalJobs = entryValues.length
+  const completedJobs = entryValues.filter(
+    (e) => e.status === 'completed' || e.status === 'failed',
+  ).length
+  const hasActiveJobs = totalJobs > 0
+
   return (
     <div className="min-h-screen flex bg-gray-900 text-white">
-      {/* ── Pipeline Editor sidebar ─────────────────────────────── */}
       <PipelineEditor />
 
-      {/* ── Main content ────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col gap-10 p-6">
-        <FileInput onChange={handleFileChange} />
-        <MiniatureList />
+      {/* ── Image area with processing bar at the bottom ──────────── */}
+      <div className="flex-1 flex flex-col min-h-screen">
+        <div className="flex-1 flex flex-col gap-10 p-6 overflow-y-auto">
+          <FileInput onChange={handleFileChange} />
+          <MiniatureList />
+        </div>
+
+        {/* ── Global processing bar (sticky bottom inside container) ─ */}
+        {hasActiveJobs && (
+          <div className="sticky bottom-0 bg-gray-800 border-t border-gray-700/50 px-6 py-3">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+                <span className="text-sm text-gray-300 font-medium whitespace-nowrap">
+                  {t('queue.globalProgress')}
+                </span>
+              </div>
+
+              <div className="flex-1 bg-gray-700 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-blue-400 h-full rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${globalProgress}%` }}
+                />
+              </div>
+
+              <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">
+                {completedJobs}/{totalJobs}
+                {stats.totalFailed > 0 && (
+                  <span className="text-red-400 ml-1">
+                    ({stats.totalFailed} {t('queue.failed').toLowerCase()})
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

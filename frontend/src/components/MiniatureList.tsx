@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { HiOutlineTrash } from 'react-icons/hi'
 import { useImagesStore, type ProcessedImageEntry } from '../stores/images'
 import { usePipelineStore } from '../stores/pipeline'
+import { useQueueStore } from '../stores/processing-queue'
 import MiniatureImageWithOptions from './MiniatureImageWithOptions'
 import ImageExplorer from './ImageExplorer'
 import Miniature from './Miniature'
@@ -95,20 +96,26 @@ export default function MiniatureList() {
   const clearProcessedImages = useImagesStore(
     (state) => state.clearProcessedImages,
   )
-  const processImage = useImagesStore((state) => state.processImage)
-  const processAllImages = useImagesStore(
-    (state) => state.processAllImages,
-  )
-  const processingState = useImagesStore(
-    (state) => state.processingState,
-  )
   const pipelineSteps = usePipelineStore((state) => state.steps)
+
+  // Queue store
+  const queueEntries = useQueueStore((state) => state.entries)
+  const enqueueImage = useQueueStore((state) => state.enqueueImage)
+  const enqueueAllImages = useQueueStore((state) => state.enqueueAllImages)
+  const resetEntry = useQueueStore((state) => state.resetEntry)
+  const connected = useQueueStore((state) => state.connected)
+
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [selectedProcessedId, setSelectedProcessedId] =
     useState<string | null>(null)
 
   const hasOutputFormatter = pipelineSteps.some(
     (s) => s.step.variant === 'output_formatter',
+  )
+
+  // Determine if any image is currently being processed or queued
+  const isQueueing = Object.values(queueEntries).some(
+    (e) => e.status === 'enqueued' || e.status === 'processing',
   )
 
   const hasImages = images.length > 0 || processedImages.length > 0
@@ -139,6 +146,16 @@ export default function MiniatureList() {
     setSelectedProcessedId(null)
   }
 
+  function handleProcessImage(imageId: string) {
+    resetEntry(imageId)
+    enqueueImage(imageId)
+  }
+
+  function handleReprocessImage(imageId: string) {
+    resetEntry(imageId)
+    enqueueImage(imageId)
+  }
+
   return (
     <div className="w-full flex flex-col items-center gap-10">
       {/* ── To Process gallery ────────────────────────────────────── */}
@@ -150,27 +167,35 @@ export default function MiniatureList() {
           clearLabel={t('miniatureList.clearToProcess')}
           footer={
             <Button
-              onClick={processAllImages}
-              disabled={processingState === 'processing'}
+              onClick={enqueueAllImages}
+              disabled={isQueueing || !connected}
               className="min-w-[180px]"
             >
-              {processingState === 'processing'
-                ? t('miniatureOptions.processing')
+              {isQueueing
+                ? t('queue.enqueuing')
                 : t('miniatureOptions.processAll')}
             </Button>
           }
         >
-          {images.map((entry) => (
-            <MiniatureImageWithOptions
-              key={entry.id}
-              src={entry.src}
-              alt={entry.name}
-              onRemove={() => removeImage(entry.id)}
-              onProcess={() => processImage(entry.id)}
-              hasOutputFormatter={hasOutputFormatter}
-              onView={() => setSelectedImageId(entry.id)}
-            />
-          ))}
+          {images.map((entry) => {
+            const qEntry = queueEntries[entry.id]
+            const qStatus = qEntry?.status ?? 'idle'
+            const progress = qEntry?.progress ?? 0
+
+            return (
+              <MiniatureImageWithOptions
+                key={entry.id}
+                src={entry.src}
+                alt={entry.name}
+                onRemove={() => removeImage(entry.id)}
+                onProcess={() => handleProcessImage(entry.id)}
+                hasOutputFormatter={hasOutputFormatter}
+                onView={() => setSelectedImageId(entry.id)}
+                queueStatus={qStatus}
+                progress={progress}
+              />
+            )
+          })}
         </GalleryShelf>
       )}
 

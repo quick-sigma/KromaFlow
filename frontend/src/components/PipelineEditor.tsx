@@ -22,6 +22,7 @@ import StepConfigDialog from './StepConfigDialog'
 import SavePipelineDialog from './SavePipelineDialog'
 import PipelineFlowGraph from './PipelineFlowGraph'
 import { usePipelineStore } from '../stores/pipeline'
+import { useQueueStore } from '../stores/processing-queue'
 import type { StepInfo, StepVariant } from '../stores/steps'
 
 // ── Local types ──────────────────────────────────────────────────────────────
@@ -287,6 +288,13 @@ export default function PipelineEditor() {
     [pipelineSteps],
   )
 
+  // ── Disable editing while processing ──────────────────────────────
+  const isProcessing = useQueueStore((s) =>
+    Object.values(s.entries).some(
+      (e) => e.status === 'enqueued' || e.status === 'processing',
+    ),
+  )
+
   const configuringStep =
     configuringIndex !== null ? pipelineSteps[configuringIndex] : null
 
@@ -386,11 +394,27 @@ export default function PipelineEditor() {
         <div className="relative group/tooltip">
           <Button
             variant="primary"
+            disabled={isProcessing}
             onClick={() => setSearchOpen(true)}
           >
             {t('pipelineEditor.addStep')}
           </Button>
-          {!hasFormatter && (
+          {isProcessing && (
+            <div
+              role="tooltip"
+              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                         px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg
+                         shadow-lg whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100
+                         transition-opacity pointer-events-none z-50"
+            >
+              <div
+                className="absolute top-full left-1/2 -translate-x-1/2
+                            border-4 border-transparent border-t-gray-900"
+              />
+              {t('queue.pipelineDisabledTooltip')}
+            </div>
+          )}
+          {!isProcessing && !hasFormatter && (
             <div
               role="tooltip"
               className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
@@ -408,7 +432,7 @@ export default function PipelineEditor() {
         </div>
         <Button
           variant="primary"
-          disabled={pipelineSteps.length === 0}
+          disabled={pipelineSteps.length === 0 || isProcessing}
           onClick={handleSavePipeline}
         >
           {t('pipelineEditor.save')}
