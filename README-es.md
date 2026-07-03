@@ -18,6 +18,15 @@
 
 ---
 
+## 📖 Instrucciones de instalación
+
+> 🧭 **¿Buscas una guía de instalación paso a paso?**  
+> Consulta [**INSTALLATION-es.md**](INSTALLATION-es.md) para instrucciones detalladas sobre cómo instalar KromaFlow en **Windows**, **Linux** y **macOS**, incluyendo dependencias del sistema, configuración de GPU y solución de problemas.
+>
+> 🇬🇧 Prefer English? See [**INSTALLATION.md**](INSTALLATION.md).
+
+---
+
 ## 🌌 Visión General
 
 **KromaFlow** es un conjunto de procesamiento de imágenes de vanguardia que te permite diseñar, visualizar y ejecutar pipelines de imagen complejos mediante un editor intuitivo de arrastrar y soltar. Carga tus archivos, encadena operaciones en segundos y procesa lotes masivos con precisión de píxel perfecto.
