@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { FiGlobe, FiSettings } from 'react-icons/fi'
+import iconUrl from '@Logo/icon.avif'
+import tipografiaUrl from '@Logo/tipografia.avif'
 
 type NavbarProps = {
   onOpenSettings: () => void
@@ -19,16 +21,18 @@ export default function Navbar({ onOpenSettings }: NavbarProps) {
       {/* ── Brand: icon + tipografia ─────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <img
-          src="/icon.png"
+          src={iconUrl}
           alt="KromaFlow"
-          className="w-8 h-8 object-contain"
-          style={{ imageRendering: 'pixelated' }}
+          width={450}
+          height={446}
+          className="h-8 w-auto object-contain"
         />
         <img
-          src="/tipografia.avif"
+          src={tipografiaUrl}
           alt="KromaFlow"
-          className="h-6 object-contain"
-          style={{ imageRendering: 'pixelated' }}
+          width={1101}
+          height={136}
+          className="h-6 w-auto object-contain"
         />
       </div>
 
