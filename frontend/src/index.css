@@ -1,1 +1,145 @@
 @import "tailwindcss";
+
+/* ── Cyber-Amethyst Design Tokens ────────────────────────────────────────── */
+/* These are exported as both CSS custom properties (for var() usage) and
+   Tailwind v4 theme values (for bg-brand-primary, text-text-muted, etc.) */
+
+@theme {
+  --color-bg-main: #151515;
+  --color-brand-primary: #662c91;
+  --color-brand-accent: #f25f5c;
+  --color-text-muted: #c7d3bf;
+
+  /* ── Font families ────────────────────────────────────────────────── */
+  --font-ui: 'Sintony', sans-serif;
+  --font-body: 'Mukta Vaani', sans-serif;
+  --font-heading: 'Varela', sans-serif;
+}
+
+:root {
+  --bg-main: #151515;
+  --bg-surface: rgba(114, 97, 163, 0.08);
+  --bg-card: rgba(114, 97, 163, 0.18);
+  --border-subtle: rgba(199, 211, 191, 0.15);
+  --brand-primary: #662c91;
+  --brand-accent: #f25f5c;
+  --text-main: #ffffff;
+  --text-muted: #c7d3bf;
+
+  /* ── Font families (CSS variable mirrors for inline style usage) ──── */
+  --font-ui: 'Sintony', sans-serif;
+  --font-body: 'Mukta Vaani', sans-serif;
+  --font-heading: 'Varela', sans-serif;
+}
+
+/* ── Global base styles ──────────────────────────────────────────────────── */
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Base element typography ──────────────────────────────────────────────── */
+button, select, input, textarea {
+  font-family: var(--font-ui);
+}
+
+/* ── Dropdown (<select>) styling ─────────────────────────────────────────── */
+/* The select itself */
+select {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+select:hover {
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(102, 44, 145, 0.35);
+}
+
+/* Option elements inside dropdowns */
+select option {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  padding: 8px 12px;
+}
+
+select option:hover,
+select option:focus {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+/* When the dropdown is open, style the selected option */
+select option:checked {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+/* ── Text selection highlight ────────────────────────────────────────────── */
+::selection {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+/* ── Custom scrollbars ─────────────────────────────────────────────────────── */
+/* Thin, dark track with brand-primary thumb. Applies to all overflow containers
+   in the sidebar, queue columns, and dialog bodies. */
+
+/* Firefox */
+.custom-scrollbar,
+.overflow-y-auto,
+.overflow-x-auto,
+.overflow-auto {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
+/* WebKit (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track,
+.overflow-y-auto::-webkit-scrollbar-track,
+.overflow-x-auto::-webkit-scrollbar-track,
+.overflow-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-x-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 9999px;
+  transition: background 150ms ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.overflow-x-auto::-webkit-scrollbar-thumb:hover,
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-primary);
+}
