@@ -15,11 +15,10 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FiChevronDown, FiPlus, FiGlobe, FiSettings } from 'react-icons/fi'
+import { FiChevronDown, FiPlus } from 'react-icons/fi'
 import Button from './Button'
 import StepSearch from './StepSearch'
 import StepConfigDialog from './StepConfigDialog'
-import SettingsDialog from './SettingsDialog'
 import SavePipelineDialog from './SavePipelineDialog'
 import PipelineFlowGraph from './PipelineFlowGraph'
 import { usePipelineStore } from '../stores/pipeline'
@@ -116,7 +115,7 @@ function persistSavedPipelines(pipelines: SavedPipeline[]): void {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function PipelineEditor() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [isSearchOpen, setSearchOpen] = useState(false)
 
   // Initialise local state from the persisted global pipeline store.
@@ -133,7 +132,6 @@ export default function PipelineEditor() {
   const [savedPipelines, setSavedPipelines] = useState<SavedPipeline[]>([])
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isSaveModalOpen, setSaveModalOpen] = useState(false)
-  const [isSettingsOpen, setSettingsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Load saved pipelines from localStorage on mount
@@ -209,18 +207,15 @@ export default function PipelineEditor() {
         return [entry, ...prev]
       }
 
-      // Distribution node → goes after the output formatter
+      // Distribution node → replaces any existing distribution node, goes after the output formatter
       if (step.variant === 'distribution') {
         const formatterIndex = prev.findIndex(
           (ps) => ps.step.variant === 'output_formatter',
         )
         if (formatterIndex !== -1) {
-          // Insert after the formatter (after all existing distribution nodes)
-          const copy = [...prev]
-          // Find the last distribution node to insert after, or use formatter position
-          const lastDistIndex = copy.length - 1
-          const insertAt = lastDistIndex + 1
-          copy.splice(insertAt, 0, entry)
+          // Remove any existing distribution node(s) first, then insert the new one
+          const copy = prev.filter((ps) => ps.step.variant !== 'distribution')
+          copy.splice(formatterIndex + 1, 0, entry)
           return copy
         }
         // Shouldn't reach here (blocked above), but just in case:
@@ -438,7 +433,7 @@ export default function PipelineEditor() {
       }}
     >
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-subtle)' }}>
+      <div className="px-6 py-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
         <h2 className="text-sm uppercase tracking-wider"
           style={{
             color: 'var(--text-main)',
@@ -448,36 +443,6 @@ export default function PipelineEditor() {
           }}>
           {t('pipelineEditor.header')}
         </h2>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="flex items-center justify-center p-1.5 rounded-lg transition-colors cursor-pointer"
-            style={{
-              color: 'var(--text-muted)',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
-            aria-label={t('settingsDialog.title')}
-          >
-            <FiSettings className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'es' : 'en')}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors cursor-pointer text-xs"
-            style={{
-              color: 'var(--text-muted)',
-              fontFamily: 'var(--font-ui)',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
-            aria-label="Switch language"
-          >
-            <FiGlobe className="w-3.5 h-3.5" />
-            <span>{i18n.language === 'en' ? 'EN' : 'ES'}</span>
-          </button>
-        </div>
       </div>
 
       {/* ── Pipeline dropdown ─────────────────────────────────────── */}
@@ -715,10 +680,6 @@ export default function PipelineEditor() {
         />
       )}
 
-      {/* ── Settings dialog ────────────────────────────────────────── */}
-      {isSettingsOpen && (
-        <SettingsDialog onClose={() => setSettingsOpen(false)} />
-      )}
     </div>
   )
 }

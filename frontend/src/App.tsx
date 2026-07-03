@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import FileInput from './components/FileInput'
 import MiniatureList from './components/MiniatureList'
+import Navbar from './components/Navbar'
 import PipelineEditor from './components/PipelineEditor'
+import SettingsDialog from './components/SettingsDialog'
 import { useImagesStore } from './stores/images'
 import { usePipelineStore } from './stores/pipeline'
 import { useQueueStore } from './stores/processing-queue'
@@ -75,6 +77,7 @@ function App() {
   const ready = useHydrationGate()
   const { t } = useTranslation()
   const addImages = useImagesStore((state) => state.addImages)
+  const [isSettingsOpen, setSettingsOpen] = useState(false)
 
   // Queue WebSocket + progress
   const connectWebSocket = useQueueStore((state) => state.connectWebSocket)
@@ -125,76 +128,85 @@ function App() {
 
   return (
     <div
-      className="min-h-screen flex text-white"
+      className="min-h-screen flex flex-col text-white"
       style={{ backgroundColor: 'var(--bg-main)' }}
     >
-      <PipelineEditor />
+      <Navbar onOpenSettings={() => setSettingsOpen(true)} />
 
-      {/* ── Image area with processing bar at the bottom ──────────── */}
-      <div className="flex-1 flex flex-col min-h-screen">
-        <div className="flex-1 flex flex-col gap-6 p-6 overflow-y-auto">
-          <FileInput onChange={handleFileChange} />
-          <MiniatureList />
-        </div>
+      <div className="flex flex-1 min-h-0">
+        <PipelineEditor />
 
-        {/* ── Global processing bar (sticky bottom inside container) ─ */}
-        {hasActiveJobs && (
-          <div
-            className="sticky bottom-0 px-6 py-3"
-            style={{
-              backgroundColor: 'var(--bg-main)',
-              borderTop: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 shrink-0">
-                <div
-                  className="w-2 h-2 rounded-full animate-pulse"
-                  style={{ backgroundColor: 'var(--brand-primary)' }}
-                />
+        {/* ── Image area with processing bar at the bottom ──────────── */}
+        <div className="flex-1 flex flex-col min-h-screen">
+          <div className="flex-1 flex flex-col gap-6 p-6 overflow-y-auto">
+            <FileInput onChange={handleFileChange} />
+            <MiniatureList />
+          </div>
+
+          {/* ── Global processing bar (sticky bottom inside container) ─ */}
+          {hasActiveJobs && (
+            <div
+              className="sticky bottom-0 px-6 py-3"
+              style={{
+                backgroundColor: 'var(--bg-main)',
+                borderTop: '1px solid var(--border-subtle)',
+              }}
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div
+                    className="w-2 h-2 rounded-full animate-pulse"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  />
+                  <span
+                    className="whitespace-nowrap"
+                    style={{
+                      color: 'var(--text-muted)',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    {t('queue.globalProgress')}
+                  </span>
+                </div>
+
+                <div className="flex-1 rounded-full h-3 overflow-hidden"
+                  style={{ backgroundColor: 'rgba(199, 211, 191, 0.1)' }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500 ease-out"
+                    style={{
+                      width: `${globalProgress}%`,
+                      background: 'linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
+                      boxShadow: '0 0 8px rgba(102,44,145,0.4), 0 0 16px rgba(242,95,92,0.2)',
+                    }}
+                  />
+                </div>
+
                 <span
-                  className="whitespace-nowrap"
+                  className="text-xs whitespace-nowrap shrink-0"
                   style={{
                     color: 'var(--text-muted)',
-                    fontFamily: 'var(--font-heading)',
-                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-ui)',
+                    fontWeight: 700,
                   }}
                 >
-                  {t('queue.globalProgress')}
+                  {completedJobs}/{totalJobs}
+                  {stats.totalFailed > 0 && (
+                    <span className="ml-1" style={{ color: 'var(--brand-accent)' }}>
+                      ({stats.totalFailed} {t('queue.failed').toLowerCase()})
+                    </span>
+                  )}
                 </span>
               </div>
-
-              <div className="flex-1 rounded-full h-3 overflow-hidden"
-                style={{ backgroundColor: 'rgba(199, 211, 191, 0.1)' }}>
-                <div
-                  className="h-full rounded-full transition-all duration-500 ease-out"
-                  style={{
-                    width: `${globalProgress}%`,
-                    background: 'linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent) 100%)',
-                    boxShadow: '0 0 8px rgba(102,44,145,0.4), 0 0 16px rgba(242,95,92,0.2)',
-                  }}
-                />
-              </div>
-
-              <span
-                className="text-xs whitespace-nowrap shrink-0"
-                style={{
-                  color: 'var(--text-muted)',
-                  fontFamily: 'var(--font-ui)',
-                  fontWeight: 700,
-                }}
-              >
-                {completedJobs}/{totalJobs}
-                {stats.totalFailed > 0 && (
-                  <span className="ml-1" style={{ color: 'var(--brand-accent)' }}>
-                    ({stats.totalFailed} {t('queue.failed').toLowerCase()})
-                  </span>
-                )}
-              </span>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* ── Settings dialog ────────────────────────────────────────── */}
+      {isSettingsOpen && (
+        <SettingsDialog onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   )
 }
