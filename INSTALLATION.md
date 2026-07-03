@@ -8,6 +8,28 @@
 
 ---
 
+## 📑 Table of Contents
+
+- [📋 Prerequisites](#-prerequisites)
+- [🪟 Windows](#-windows)
+- [🐧 Linux (Ubuntu / Debian / Fedora / Arch)](#-linux-ubuntu--debian--fedora--arch)
+- [🍎 macOS](#-macos)
+- [🔧 Configuration](#-configuration)
+- [🧪 Running Tests](#-running-tests)
+- [🐳 Container Guide](#-container-guide)
+  - [🎮 Docker — GPU](#-docker--gpu)
+  - [💻 Docker — CPU](#-docker--cpu)
+  - [🦭 Podman — GPU](#-podman--gpu)
+  - [🦭 Podman — CPU](#-podman--cpu)
+  - [🐄 Rancher Desktop — GPU](#-rancher-desktop--gpu)
+  - [🐄 Rancher Desktop — CPU](#-rancher-desktop--cpu)
+  - [📊 Comparison](#-comparison)
+  - [🔧 Common Container Commands](#-common-container-commands)
+- [❓ Troubleshooting](#-troubleshooting)
+- [🎯 Next Steps](#-next-steps)
+
+---
+
 ## 📋 Prerequisites
 
 | Requirement | Minimum Version | Notes |

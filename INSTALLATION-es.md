@@ -8,6 +8,28 @@
 
 ---
 
+## 📑 Índice de Contenidos
+
+- [📋 Requisitos Previos](#-requisitos-previos)
+- [🪟 Windows](#-windows)
+- [🐧 Linux (Ubuntu / Debian / Fedora / Arch)](#-linux-ubuntu--debian--fedora--arch)
+- [🍎 macOS](#-macos)
+- [🔧 Configuración](#-configuración)
+- [🧪 Ejecutar Pruebas](#-ejecutar-pruebas)
+- [🐳 Guía de Contenedores](#-guía-de-contenedores)
+  - [🎮 Docker — GPU](#-docker--gpu)
+  - [💻 Docker — CPU](#-docker--cpu)
+  - [🦭 Podman — GPU](#-podman--gpu)
+  - [🦭 Podman — CPU](#-podman--cpu)
+  - [🐄 Rancher Desktop — GPU](#-rancher-desktop--gpu)
+  - [🐄 Rancher Desktop — CPU](#-rancher-desktop--cpu)
+  - [📊 Comparativa](#-comparativa)
+  - [🔧 Comandos Comunes de Contenedores](#-comandos-comunes-de-contenedores)
+- [❓ Solución de Problemas](#-solución-de-problemas)
+- [🎯 Próximos Pasos](#-próximos-pasos)
+
+---
+
 ## 📋 Requisitos Previos
 
 | Requisito | Versión Mínima | Notas |
