@@ -128,7 +128,7 @@ function App() {
 
   return (
     <div
-      className="min-h-screen flex flex-col text-white overflow-hidden"
+      className="h-screen flex flex-col text-white"
       style={{ backgroundColor: 'var(--bg-main)' }}
     >
       <Navbar onOpenSettings={() => setSettingsOpen(true)} />
