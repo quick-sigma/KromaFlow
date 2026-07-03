@@ -12,6 +12,10 @@
   <img src="https://img.shields.io/badge/AI-Real--ESRGAN%20%7C%20BRIA-ff6b6b?style=for-the-badge" alt="AI" />
 </p>
 
+<p align="center">
+  <a href="README-es.md"><strong>🇪🇸 Versión en español</strong></a>
+</p>
+
 ---
 
 ## 🌌 Overview
