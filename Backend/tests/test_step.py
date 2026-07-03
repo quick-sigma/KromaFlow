@@ -13,7 +13,6 @@ from PIL import Image
 from pydantic import BaseModel, ValidationError
 
 from base import OutputFormatter, Processor
-from models import ProcessingInstructions
 from step import (
     Pipeline,
     Step,
@@ -27,10 +26,7 @@ from step import (
 )
 from steps_config import (
     AVIFOutputFormatterStep,
-    ImageOutputFormatterStep,
-    ImageProcessingConfig,
-    ImageProcessorStep,
-    OutputFormatConfig,
+    AVIFOutputFormatConfig,
     WatermarkRemovalConfig,
     WatermarkRemovalStep,
 )
@@ -385,17 +381,18 @@ class TestRegisterDecorator:
         infos = get_registered_steps()
         names = {i.name for i in infos}
 
-        assert "image-processor" in names
-        assert "image-output-formatter" in names
+        assert "Watermark Remover" in names
 
-        proc = next(i for i in infos if i.name == "image-processor")
-        assert proc.id == "img_proc"
-        assert proc.variant == StepVariant.PROCESSOR
-        assert proc.version == "1.0.0"
+        wm = next(i for i in infos if i.name == "Watermark Remover")
+        assert wm.id == "wm_remover"
+        assert wm.variant == StepVariant.PROCESSOR
+        assert wm.version == "1.0.0"
 
-        fmt = next(i for i in infos if i.name == "image-output-formatter")
-        assert fmt.id == "img_fmt"
-        assert fmt.variant == StepVariant.OUTPUT_FORMATTER
+        # AVIF formatter may or may not be available
+        if "AVIF Image Output" in names:
+            avif = next(i for i in infos if i.name == "AVIF Image Output")
+            assert avif.id == "avif_fmt"
+            assert avif.variant == StepVariant.OUTPUT_FORMATTER
 
     def test_get_registered_steps_sorted_by_name(self):
         infos = get_registered_steps()
@@ -426,35 +423,38 @@ class TestRegisterDecorator:
 
 
 class TestConfigSchemas:
-    def test_image_processing_config_is_processing_instructions(self):
-        assert issubclass(ImageProcessingConfig, ProcessingInstructions)
+    def test_watermark_removal_config_has_no_fields(self):
+        """WatermarkRemovalConfig should have no configuration fields."""
+        # No fields means the frontend will disable the settings button
+        assert len(WatermarkRemovalConfig.model_fields) == 0
 
-    def test_image_processing_config_validates(self):
-        cfg = ImageProcessingConfig(rotate=90, grayscale=True)
-        assert cfg.rotate == 90
-        assert cfg.grayscale is True
+    def test_avif_output_format_config_defaults(self):
+        if AVIFOutputFormatConfig:
+            cfg = AVIFOutputFormatConfig()
+            assert cfg.quality == 85
 
-    def test_watermark_removal_config_defaults(self):
-        cfg = WatermarkRemovalConfig()
-        assert cfg.enabled is True
+    def test_avif_output_format_config_custom(self):
+        if AVIFOutputFormatConfig:
+            cfg = AVIFOutputFormatConfig(quality=90)
+            assert cfg.quality == 90
 
-    def test_watermark_removal_config_disabled(self):
-        cfg = WatermarkRemovalConfig(enabled=False)
-        assert cfg.enabled is False
+    def test_avif_output_format_config_range_zero(self):
+        if AVIFOutputFormatConfig:
+            cfg = AVIFOutputFormatConfig(quality=0)
+            assert cfg.quality == 0
 
-    def test_output_format_config_defaults(self):
-        cfg = OutputFormatConfig()
-        assert cfg.format == "png"
-        assert cfg.quality == 85
+    def test_avif_output_format_config_range_hundred(self):
+        if AVIFOutputFormatConfig:
+            cfg = AVIFOutputFormatConfig(quality=100)
+            assert cfg.quality == 100
 
-    def test_output_format_config_custom(self):
-        cfg = OutputFormatConfig(format="webp", quality=90)
-        assert cfg.format == "webp"
-        assert cfg.quality == 90
-
-    def test_output_format_config_quality_none(self):
-        cfg = OutputFormatConfig(quality=None)
-        assert cfg.quality is None
+    def test_avif_format_config_json_schema_has_slider_hint(self):
+        if AVIFOutputFormatConfig:
+            schema = AVIFOutputFormatConfig.model_json_schema()
+            quality_props = schema["properties"]["quality"]
+            assert quality_props.get("frontend_type") == "slider"
+            assert quality_props.get("minimum") == 0
+            assert quality_props.get("maximum") == 100
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -462,47 +462,18 @@ class TestConfigSchemas:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestImageProcessorStep:
-    def test_instantiation(self):
-        step = ImageProcessorStep()
-        assert step.id == "img_proc"
-        assert step.name == "image-processor"
-        assert step.variant == StepVariant.PROCESSOR
-        assert step.config_schema == ImageProcessingConfig
-
-    def test_execute_returns_processed_image(self):
-        step = ImageProcessorStep()
-        img = Image.new("RGB", (100, 100), color=(255, 0, 0))
-        config = ImageProcessingConfig(grayscale=True)
-        result = step.execute(img, config)
-        assert isinstance(result, Image.Image)
-        assert result.mode == "L"  # grayscale
-
-    def test_execute_with_empty_config(self):
-        step = ImageProcessorStep()
-        img = Image.new("RGB", (50, 50))
-        config = ImageProcessingConfig()
-        result = step.execute(img, config)
-        assert result.size == (50, 50)
-
-    def test_info_contains_json_schema(self):
-        step = ImageProcessorStep()
-        info = step.info()
-        assert "resize" in info.config_schema.get("properties", {})
-        assert "rotate" in info.config_schema.get("properties", {})
-
-
 class TestWatermarkRemovalStep:
     def test_instantiation(self):
         from step import _registry
 
-        assert "watermark-remover" in _registry
+        assert "Watermark Remover" in _registry
 
         step = WatermarkRemovalStep()
         assert step.id == "wm_remover"
+        assert step.name == "Watermark Remover"
         assert step.variant == StepVariant.PROCESSOR
 
-    def test_execute_disabled_returns_copy(self):
+    def test_execute_calls_process(self):
         from unittest.mock import MagicMock, patch
 
         with patch("steps_config._watermark_available", True):
@@ -513,47 +484,23 @@ class TestWatermarkRemovalStep:
 
                 step = WatermarkRemovalStep()
                 img = Image.new("RGB", (5, 5), color=(255, 0, 0))
-                config = WatermarkRemovalConfig(enabled=False)
+                config = WatermarkRemovalConfig()
                 result = step.execute(img, config)
 
-                mock_instance.process.assert_not_called()
-                assert result.size == (5, 5)
-
-
-class TestImageOutputFormatterStep:
-    def test_instantiation(self):
-        step = ImageOutputFormatterStep()
-        assert step.id == "img_fmt"
-        assert step.name == "image-output-formatter"
-        assert step.variant == StepVariant.OUTPUT_FORMATTER
-        assert step.config_schema == OutputFormatConfig
-
-    def test_execute_returns_bytes(self):
-        step = ImageOutputFormatterStep()
-        img = Image.new("RGB", (10, 10))
-        data, ctype = step.execute(img, output_format="png")
-        assert isinstance(data, bytes)
-        assert ctype == "image/png"
-        assert len(data) > 0
-
-    def test_info_contains_format_and_quality(self):
-        step = ImageOutputFormatterStep()
-        info = step.info()
-        props = info.config_schema.get("properties", {})
-        assert "format" in props
-        assert "quality" in props
+                mock_instance.process.assert_called_once()
+                assert result.size == (10, 10)
 
 
 class TestAVIFOutputFormatterStep:
     def test_registered_when_available(self):
         from step import _registry
 
-        registered = "avif-output-formatter" in _registry
+        registered = "AVIF Image Output" in _registry
         if registered:
             step = AVIFOutputFormatterStep()
             assert step.id == "avif_fmt"
             assert step.variant == StepVariant.OUTPUT_FORMATTER
-            assert step.name == "avif-output-formatter"
+            assert step.name == "AVIF Image Output"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -566,7 +513,7 @@ class TestIntegration:
 
     def test_all_registered_steps_can_be_instantiated(self):
         infos = get_registered_steps()
-        assert len(infos) >= 2
+        assert len(infos) >= 1  # at least watermark-remover
 
     def test_each_step_info_has_required_fields(self):
         infos = get_registered_steps()
@@ -575,7 +522,11 @@ class TestIntegration:
             assert info.name
             assert info.description
             assert info.version
-            assert info.variant in (StepVariant.PROCESSOR, StepVariant.OUTPUT_FORMATTER)
+            assert info.variant in (
+                StepVariant.PROCESSOR,
+                StepVariant.OUTPUT_FORMATTER,
+                StepVariant.DISTRIBUTION,
+            )
             assert isinstance(info.config_schema, dict)
 
     def test_processor_steps_have_output_schema(self):
@@ -584,12 +535,11 @@ class TestIntegration:
         for info in processor_infos:
             assert "properties" in info.config_schema
 
-    def test_formatter_steps_have_format_and_quality(self):
+    def test_formatter_steps_have_quality_in_schema(self):
         infos = get_registered_steps()
         formatter_infos = [
             i for i in infos if i.variant == StepVariant.OUTPUT_FORMATTER
         ]
         for info in formatter_infos:
             props = info.config_schema.get("properties", {})
-            assert "format" in props, f"{info.name} missing 'format' in schema"
             assert "quality" in props, f"{info.name} missing 'quality' in schema"

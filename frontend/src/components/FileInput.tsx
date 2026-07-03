@@ -128,26 +128,39 @@ export default function FileInput({ onChange, ...props }: FileInputProps) {
         tabIndex={0}
         data-testid="file-dropzone"
         className={`
-          relative w-full border-2 border-dashed rounded-xl p-10
+          relative w-full border-2 border-dashed rounded-xl py-8
           flex flex-col items-center justify-center gap-3
           cursor-pointer select-none
           transition-all duration-200
           ${
             isDragging
-              ? 'border-blue-400 bg-blue-900/20 shadow-[inset_0_0_30px_rgba(59,130,246,0.15)]'
-              : 'border-gray-600 hover:border-gray-500 bg-gray-800/20 shadow-[inset_0_2px_8px_rgba(0,0,0,0.35)] hover:shadow-[inset_0_2px_12px_rgba(0,0,0,0.5)] hover:bg-gray-800/30'
+              ? 'shadow-[inset_0_0_30px_rgba(102,44,145,0.15)]'
+              : 'hover:shadow-[inset_0_2px_12px_rgba(0,0,0,0.5)]'
           }
         `}
+        style={{
+          borderColor: isDragging ? 'var(--brand-primary)' : 'var(--border-subtle)',
+          backgroundColor: isDragging ? 'rgba(102,44,145,0.08)' : 'transparent',
+        }}
       >
         <HiUpload
-          className={`text-5xl transition-colors duration-200 ${
-            isDragging ? 'text-blue-400' : 'text-gray-500'
-          }`}
+          className="text-5xl transition-colors duration-200"
+          style={{ color: isDragging ? 'var(--brand-accent)' : 'var(--brand-accent)' }}
         />
-        <p className="text-gray-300 text-lg font-medium">
+        <p style={{
+            color: 'var(--text-main)',
+            fontFamily: 'var(--font-heading)',
+            fontSize: '1.35rem',
+            fontWeight: 400,
+          }}>
           {t('fileInput.loadOrDrag')}
         </p>
-        <p className="text-gray-500 text-sm">
+        <p style={{
+            color: 'var(--text-muted)',
+            fontFamily: 'var(--font-ui)',
+            fontSize: '0.75rem',
+            letterSpacing: '0.08em',
+          }}>
           {t('fileInput.supportedFormats')}
         </p>
       </div>
@@ -156,10 +169,11 @@ export default function FileInput({ onChange, ...props }: FileInputProps) {
       {isDragging && (
         <div
           data-testid="drop-overlay"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-blue-900/80 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+          style={{ backgroundColor: 'rgba(102, 44, 145, 0.8)' }}
         >
           <div className="flex flex-col items-center gap-4">
-            <HiUpload className="text-6xl text-white/80" />
+            <HiUpload className="text-6xl" style={{ color: 'var(--brand-accent)' }} />
             <p className="text-2xl font-bold text-white">
               {t('fileInput.loadOrDrag')}
             </p>

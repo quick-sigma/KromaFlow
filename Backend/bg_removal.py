@@ -188,10 +188,10 @@ class BackgroundRemovalProcessor(Processor):
             result = self._model(im_tensor)
 
         # ── Post-process ─────────────────────────────────────────────────
-        # model output is a tuple; result[0] has shape (1, 1, H', W') —
-        # the mask logits.  Interpolate to original resolution.
+        # Model output is a tuple: (list_of_6_masks, list_of_6_features).
+        # result[0][0] is the final mask logit tensor (1, 1, H', W').
         mask_logits = F.interpolate(
-            result[0],  # (1, 1, H', W')
+            result[0][0],  # (1, 1, H', W')
             size=(orig_h, orig_w),
             mode="bilinear",
         )  # → (1, 1, orig_h, orig_w)

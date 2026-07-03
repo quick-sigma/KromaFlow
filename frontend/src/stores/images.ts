@@ -31,8 +31,12 @@ export type ImageEntry = {
 
 /**
  * Processed images are stored on the backend.  The entry carries
- * a ``downloadUrl`` that can be used both for ``<img>`` display
- * and for programmatic download.
+ * a ``downloadUrl`` that can be used for programmatic download and,
+ * when no ``thumbnailUrl`` is set, for ``<img>`` display as well.
+ *
+ * For distribution artifacts (e.g. SRCSet zip), ``downloadUrl`` points
+ * to the zip while ``thumbnailUrl`` points to the highest-resolution
+ * image so the browser can display a preview.
  */
 export type ProcessedImageEntry = {
   id: string
@@ -41,8 +45,13 @@ export type ProcessedImageEntry = {
   name: string
   type: string
   size: number
-  /** Full URL to download the processed image from the backend */
+  /** Full URL to download the processed result from the backend */
   downloadUrl: string
+  /**
+   * Optional URL for thumbnail/preview display.
+   * When absent, ``downloadUrl`` is used for both thumbnail and download.
+   */
+  thumbnailUrl?: string
   processedAt: number
 }
 
@@ -70,6 +79,7 @@ type PersistedProcessedImageEntry = {
   type: string
   size: number
   downloadUrl: string
+  thumbnailUrl?: string
   processedAt: number
 }
 
@@ -302,10 +312,21 @@ export const useImagesStore = create<ImageState>()(
             type: string
             size: number
             downloadUrl: string
+            primaryImage?: {
+              resultId: string
+              downloadUrl: string
+              type: string
+              size: number
+            }
           } = await response.json()
 
           const resultId = data.resultId
           const downloadUrl = `${API_BASE}${data.downloadUrl}`
+
+          // For distribution artifacts, use the highest-res image as thumbnail
+          const thumbnailUrl = data.primaryImage
+            ? `${API_BASE}${data.primaryImage.downloadUrl}`
+            : undefined
 
           const processedEntry: ProcessedImageEntry = {
             id: resultId,
@@ -315,6 +336,7 @@ export const useImagesStore = create<ImageState>()(
             type: data.type,
             size: data.size,
             downloadUrl,
+            thumbnailUrl,
             processedAt: Date.now(),
           }
 
@@ -408,9 +430,18 @@ export const useImagesStore = create<ImageState>()(
               type: string
               size: number
               downloadUrl: string
+              primaryImage?: {
+                resultId: string
+                downloadUrl: string
+                type: string
+                size: number
+              }
             } = await response.json()
 
             const downloadUrl = `${API_BASE}${data.downloadUrl}`
+            const thumbnailUrl = data.primaryImage
+              ? `${API_BASE}${data.primaryImage.downloadUrl}`
+              : undefined
 
             newProcessed.push({
               id: data.resultId,
@@ -420,6 +451,7 @@ export const useImagesStore = create<ImageState>()(
               type: data.type,
               size: data.size,
               downloadUrl,
+              thumbnailUrl,
               processedAt: Date.now(),
             })
           } catch (err) {
@@ -555,6 +587,7 @@ export const useImagesStore = create<ImageState>()(
             type: img.type,
             size: img.size,
             downloadUrl: img.downloadUrl,
+            thumbnailUrl: img.thumbnailUrl,
             processedAt: img.processedAt,
           }),
         ),

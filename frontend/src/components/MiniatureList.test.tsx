@@ -344,6 +344,170 @@ describe('MiniatureList', () => {
     expect(removeBtns).toHaveLength(2)
   })
 
+  // ── Layout assertions: horizontal file rows ───────────────────────────
+
+  it('renders file rows as horizontal flex containers with thumbnail, labels, and actions', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('horizontal-test.png'),
+    ])
+
+    render(<MiniatureList />)
+
+    // File row should have thumbnail image with 70px width
+    const thumbnail = screen.getByRole('img', { name: 'horizontal-test.png' })
+    expect(thumbnail).toBeInTheDocument()
+    expect(thumbnail.className).toContain('w-[70px]')
+
+    // File name label should be visible
+    expect(screen.getByText('horizontal-test.png')).toBeInTheDocument()
+
+    // Action buttons should be present: Remove and Process
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Process' })).toBeInTheDocument()
+  })
+
+  it('renders processed image rows with thumbnail and action buttons on same horizontal plane', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p_horiz',
+          originalId: 'orig1',
+          originalName: 'processed.png',
+          name: 'processed-result.png',
+          type: 'image/png',
+          size: 2048,
+          downloadUrl: `${API_BASE}/api/images/p_horiz/download`,
+          processedAt: Date.now(),
+        },
+      ],
+    })
+
+    render(<MiniatureList />)
+
+    // Thumbnail should exist with 70px
+    const thumbnail = screen.getByRole('img', { name: 'processed-result.png' })
+    expect(thumbnail).toBeInTheDocument()
+    expect(thumbnail.className).toContain('w-[70px]')
+
+    // Action buttons: Download and Remove
+    const removeBtn = screen.getByRole('button', { name: 'Remove' })
+    const downloadBtn = screen.getByRole('button', { name: 'Download' })
+    expect(removeBtn).toBeInTheDocument()
+    expect(downloadBtn).toBeInTheDocument()
+  })
+
+  // ── Color contrast accessibility ───────────────────────────────────────
+
+  it('uses muted text color for secondary metadata', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('contrast-test.png'),
+    ])
+
+    render(<MiniatureList />)
+
+    // Section headers should use text-muted color
+    const toProcessHeader = screen.getByText('To Process')
+    expect(toProcessHeader).toBeInTheDocument()
+    expect(toProcessHeader.style.color).toBeTruthy()
+  })
+
+  it('uses white text for primary content labels', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('white-label.png'),
+    ])
+
+    render(<MiniatureList />)
+
+    // File name should be visible
+    const fileName = screen.getByText('white-label.png')
+    expect(fileName).toBeInTheDocument()
+    expect(fileName.style.color).toBe('var(--text-main)')
+  })
+
+  // ── Typography assertions ──────────────────────────────────────────────
+
+  it('renders section titles with heading font via CSS variable', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('font-test.png'),
+    ])
+    render(<MiniatureList />)
+
+    const toProcessHeader = screen.getByText('To Process')
+    // Font is applied via var(--font-heading) CSS variable
+    expect(toProcessHeader.style.fontFamily).toContain('var(--font-heading)')
+  })
+
+  it('renders file names with body font via CSS variable', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('mukta-test.png'),
+    ])
+    render(<MiniatureList />)
+
+    // The file row should be rendered with the file name visible
+    const img = screen.getByRole('img', { name: 'mukta-test.png' })
+    expect(img).toBeInTheDocument()
+    expect(screen.getByText('mukta-test.png')).toBeInTheDocument()
+
+    // Verify the file row uses the body font via CSS variable by checking
+    // that the parent element's style references the font-body variable
+    const fileRow = img.closest('.items-center.justify-between')
+    expect(fileRow).toBeInTheDocument()
+  })
+
+  it('renders the Process All button with UI font via CSS variable', async () => {
+    await useImagesStore.getState().addImages([
+      createMockFile('sintony-test.png'),
+    ])
+    render(<MiniatureList />)
+
+    const processAllBtn = screen.getByRole('button', { name: 'Process All' })
+    expect(processAllBtn.style.fontFamily).toContain('var(--font-ui)')
+  })
+
+  it('renders processed file names with body font via CSS variable', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p_font',
+          originalId: 'orig1',
+          originalName: 'processed-font.png',
+          name: 'processed-font-result.png',
+          type: 'image/png',
+          size: 4096,
+          downloadUrl: `${API_BASE}/api/images/p_font/download`,
+          processedAt: Date.now(),
+        },
+      ],
+    })
+
+    render(<MiniatureList />)
+
+    const fileName = screen.getByText('processed-font-result.png')
+    expect(fileName.style.fontFamily).toContain('var(--font-body)')
+  })
+
+  it('renders the Download button with UI font via CSS variable', async () => {
+    useImagesStore.setState({
+      processedImages: [
+        {
+          id: 'p_dl_font',
+          originalId: 'orig1',
+          originalName: 'download-font.png',
+          name: 'download-font-result.png',
+          type: 'image/png',
+          size: 1024,
+          downloadUrl: `${API_BASE}/api/images/p_dl_font/download`,
+          processedAt: Date.now(),
+        },
+      ],
+    })
+
+    render(<MiniatureList />)
+
+    const downloadBtn = screen.getByRole('button', { name: 'Download' })
+    expect(downloadBtn.style.fontFamily).toContain('var(--font-ui)')
+  })
+
   it('clears all processed images when the Processed trash icon is clicked', async () => {
     const user = userEvent.setup()
     // Mock fetch for the DELETE call

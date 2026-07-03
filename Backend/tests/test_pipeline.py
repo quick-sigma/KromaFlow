@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from base import OutputFormatter, Processor
 from step import (
     Pipeline,
+    PipelineResult,
     Step,
     StepInfo,
     StepVariant,
@@ -166,17 +167,17 @@ class TestPipelineConstruction:
             Pipeline([proc_step])
 
     def test_multiple_formatters_raises(self, proc_step, fmt_step, fmt_step_b):
-        """Two formatters — the first one (not last) triggers the position check."""
-        with pytest.raises(ValueError, match="must be the last step"):
+        """Two formatters — detects the second one as duplicate."""
+        with pytest.raises(ValueError, match="cannot have more than one OutputFormatter"):
             Pipeline([proc_step, fmt_step, fmt_step_b])
 
     def test_formatter_not_last_raises(self, proc_step, fmt_step, proc_step_b):
         """Formatter in the middle should be rejected."""
-        with pytest.raises(ValueError, match="must be the last step"):
+        with pytest.raises(ValueError, match="cannot appear after the output formatter"):
             Pipeline([proc_step, fmt_step, proc_step_b])
 
     def test_formatter_first_raises(self, fmt_step, proc_step):
-        with pytest.raises(ValueError, match="must be the last step"):
+        with pytest.raises(ValueError, match="cannot appear after the output formatter"):
             Pipeline([fmt_step, proc_step])
 
     def test_steps_property_returns_copy(self, proc_step, fmt_step):
@@ -203,13 +204,19 @@ class TestPipelineConstruction:
 
 
 class TestPipelineExecute:
-    def test_basic_execute_returns_bytes(self, proc_step, fmt_step, sample_image):
+    def test_basic_execute_returns_pipeline_result(self, proc_step, fmt_step, sample_image):
         pipeline = Pipeline([proc_step, fmt_step])
         result = pipeline.execute(sample_image)
-        assert isinstance(result, tuple)
+        assert isinstance(result, PipelineResult)
+        # Supports tuple unpacking
         data, ctype = result
         assert isinstance(data, bytes)
         assert ctype == "image/png"
+        # Named attributes
+        assert result.output_bytes == data
+        assert result.content_type == ctype
+        # No distributions for a plain pipeline
+        assert result.distributions == {}
 
     def test_execute_with_multiple_processors(
         self, proc_step, proc_step_b, fmt_step, sample_image
@@ -314,6 +321,209 @@ class TestPipelineExecute:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# ── Distribution pipeline — construction validation
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestDistributionPipelineConstruction:
+    def test_valid_processor_formatter_distribution(self, proc_step, fmt_step, sample_image):
+        dist = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist1",
+            name="dist-1",
+            description="Test distribution",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        pipeline = Pipeline([proc_step, fmt_step, dist])
+        assert pipeline.step_count == 3
+        assert pipeline.has_distribution is True
+        assert len(pipeline.distribution_steps) == 1
+
+    def test_valid_multiple_distributions(self, proc_step, fmt_step, sample_image):
+        dist_a = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist_a",
+            name="dist-a",
+            description="Dist A",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        dist_b = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist_b",
+            name="dist-b",
+            description="Dist B",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        pipeline = Pipeline([proc_step, fmt_step, dist_a, dist_b])
+        assert pipeline.step_count == 4
+        assert pipeline.has_distribution is True
+        assert len(pipeline.distribution_steps) == 2
+
+    def test_distribution_without_formatter_raises(self, proc_step, sample_image):
+        dist = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist1",
+            name="dist-1",
+            description="Test distribution",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        with pytest.raises(ValueError, match="must appear after the output formatter"):
+            Pipeline([proc_step, dist])
+
+    def test_distribution_before_formatter_raises(self, proc_step, fmt_step, sample_image):
+        dist = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist1",
+            name="dist-1",
+            description="Test distribution",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        with pytest.raises(ValueError, match="must appear after the output formatter"):
+            Pipeline([proc_step, dist, fmt_step])
+
+    def test_processor_after_formatter_raises(self, proc_step, fmt_step, sample_image):
+        with pytest.raises(ValueError, match="cannot appear after the output formatter"):
+            Pipeline([proc_step, fmt_step, proc_step])
+
+    def test_distribution_without_processor_raises(self, fmt_step, sample_image):
+        dist = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist1",
+            name="dist-1",
+            description="Test distribution",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        with pytest.raises(ValueError, match="at least one Processor"):
+            Pipeline([fmt_step, dist])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ── Distribution pipeline — execute
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestDistributionPipelineExecute:
+    def test_execute_with_distribution(self, proc_step, fmt_step, sample_image):
+        dist_node = _DummyDistributionNode()
+        dist = Step(
+            component=dist_node,
+            variant=StepVariant.DISTRIBUTION,
+            id="dist1",
+            name="dist-1",
+            description="Test distribution",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        pipeline = Pipeline([proc_step, fmt_step, dist])
+        result = pipeline.execute(sample_image)
+
+        # Primary output still works
+        data, ctype = result
+        assert isinstance(data, bytes)
+        assert ctype == "image/png"
+
+        # Distribution artifacts present
+        assert "dist1" in result.distributions
+        dist_artifacts = result.distributions["dist1"]
+        assert dist_artifacts["type"] == "test_dist"
+
+        # Distribution node was called with correct args
+        assert dist_node.call_count == 1
+        assert dist_node.last_format == "png"
+
+    def test_execute_with_multiple_distributions(self, proc_step, fmt_step, sample_image):
+        dist_a = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist_a",
+            name="dist-a",
+            description="Dist A",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        dist_b = Step(
+            component=_RecordingDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist_b",
+            name="dist-b",
+            description="Dist B",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        pipeline = Pipeline([proc_step, fmt_step, dist_a, dist_b])
+        result = pipeline.execute(sample_image)
+
+        assert "dist_a" in result.distributions
+        assert "dist_b" in result.distributions
+        assert result.distributions["dist_a"]["type"] == "test_dist"
+        assert result.distributions["dist_b"]["type"] == "empty"
+
+    def test_distribution_passes_format_and_quality(self, proc_step, fmt_step, sample_image):
+        dist_node = _DummyDistributionNode()
+        dist = Step(
+            component=dist_node,
+            variant=StepVariant.DISTRIBUTION,
+            id="dist1",
+            name="dist-1",
+            description="Test distribution",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+
+        class _FmtConfig(BaseModel):
+            format: str = "webp"
+            quality: int | None = 90
+
+        pipeline = Pipeline([proc_step, fmt_step, dist])
+        result = pipeline.execute(
+            sample_image,
+            configs={"fmt1": _FmtConfig(format="webp", quality=90)},
+        )
+
+        # Distribution should receive the format/quality from the formatter
+        assert dist_node.last_format == "webp"
+        assert dist_node.last_quality == 90
+
+    def test_pipeline_result_tuple_unpacking(self, proc_step, fmt_step, sample_image):
+        dist = Step(
+            component=_DummyDistributionNode(),
+            variant=StepVariant.DISTRIBUTION,
+            id="dist1",
+            name="dist-1",
+            description="Test distribution",
+            version="1.0.0",
+            config_schema=_DummyConfig,
+        )
+        pipeline = Pipeline([proc_step, fmt_step, dist])
+        result = pipeline.execute(sample_image)
+
+        # Named attributes
+        assert result.output_bytes is not None
+        assert result.content_type == "image/png"
+        assert "dist1" in result.distributions
+
+        # Index access
+        assert result[0] == result.output_bytes
+        assert result[1] == result.content_type
+
+        # __repr__
+        assert "PipelineResult" in repr(result)
+        assert "dist1" in repr(result)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # ── Pipeline — properties
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -402,6 +612,45 @@ def _register_test_steps():
             del step._registry[key]
 
 
+# ── Test helpers for distribution tests ──────────────────────────────────────
+
+
+class _DummyDistributionNode:
+    """A minimal distribution node that records calls and returns fixed data."""
+
+    def __init__(self) -> None:
+        self.call_count = 0
+        self.last_image = None
+        self.last_format = None
+        self.last_quality = None
+        self.last_config = None
+
+    def distribute(self, image, output_format="png", quality=None, config=None):
+        self.call_count += 1
+        self.last_image = image
+        self.last_format = output_format
+        self.last_quality = quality
+        self.last_config = config
+        return {
+            "type": "test_dist",
+            "artifacts": [{"name": "test.txt", "data": b"hello"}],
+            "zip_bytes": b"fake-zip-content",
+            "html_srcset": "test-400w.jpg 400w",
+            "html_picture": "<picture>...</picture>",
+        }
+
+
+class _RecordingDistributionNode:
+    """Records calls but returns empty distribution."""
+
+    def distribute(self, image, output_format="png", quality=None, config=None):
+        return {
+            "type": "empty",
+            "artifacts": [],
+            "zip_bytes": b"",
+        }
+
+
 import step as step  # noqa: E402 — needed for registry cleanup in fixture
 
 
@@ -447,43 +696,15 @@ class TestPipelineFromSteps:
 
 
 class TestRealStepPipeline:
-    """Use the real registered steps (image-processor, image-output-formatter)."""
-
-    def test_real_process_and_format(self, sample_image):
-        """Full pipeline: ImageProcessor → ImageOutputFormatter."""
-        pipeline = pipeline_from_steps(["img_proc", "img_fmt"])
-        data, ctype = pipeline.execute(sample_image)
-        assert isinstance(data, bytes)
-        assert ctype == "image/png"
-        assert len(data) > 0
-
-    def test_real_pipeline_with_config(self, sample_image):
-        from steps_config import ImageProcessingConfig, OutputFormatConfig
-
-        pipeline = pipeline_from_steps(["img_proc", "img_fmt"])
-        data, ctype = pipeline.execute(
-            sample_image,
-            configs={
-                "img_proc": ImageProcessingConfig(grayscale=True),
-                "img_fmt": OutputFormatConfig(format="jpeg", quality=90),
-            },
-        )
-        assert ctype == "image/jpeg"
-        # Verify grayscale processing: open result and check mode
-        from io import BytesIO
-
-        result_img = Image.open(BytesIO(data))
-        assert result_img.mode == "RGB"  # JPEG doesn't support L directly
-        # The image should still be visually grayscale (all R=G=B)
-        px = result_img.getpixel((0, 0))
-        assert px[0] == px[1] == px[2], "Expected grayscale pixel values"
+    """Use the real registered steps."""
 
     def test_real_pipeline_avif_when_available(self, sample_image):
-        """If AVIF is available, test with it."""
+        """If AVIF is available, test the AVIF pipeline."""
         from step import _step_id_map
 
         if "avif_fmt" in _step_id_map:
-            pipeline = pipeline_from_steps(["img_proc", "avif_fmt"])
+            # Use a test processor that was registered by the fixture
+            pipeline = pipeline_from_steps(["test_proc_a", "avif_fmt"])
             data, ctype = pipeline.execute(sample_image)
             assert ctype == "image/avif"
         else:

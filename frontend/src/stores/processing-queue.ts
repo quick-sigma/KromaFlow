@@ -321,6 +321,9 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
                     type: '', // Will be inferred from the download
                     size: 0,
                     downloadUrl,
+                    thumbnailUrl: (message.job as Record<string, unknown>).primaryImageUrl
+                      ? `${API_BASE}${(message.job as Record<string, unknown>).primaryImageUrl}`
+                      : undefined,
                     processedAt: Date.now(),
                   }
 

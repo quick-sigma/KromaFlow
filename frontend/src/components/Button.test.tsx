@@ -8,19 +8,19 @@ describe('Button', () => {
     render(<Button>Process</Button>)
     const button = screen.getByRole('button', { name: 'Process' })
     expect(button).toBeInTheDocument()
-    expect(button.className).toContain('bg-blue-600')
+    expect(button.className).toContain('bg-brand-primary')
   })
 
   it('renders with primary variant explicitly', () => {
     render(<Button variant="primary">Process</Button>)
     const button = screen.getByRole('button', { name: 'Process' })
-    expect(button.className).toContain('bg-blue-600')
+    expect(button.className).toContain('bg-brand-primary')
   })
 
   it('renders with danger variant', () => {
     render(<Button variant="danger">Remove</Button>)
     const button = screen.getByRole('button', { name: 'Remove' })
-    expect(button.className).toContain('bg-red-600')
+    expect(button.className).toContain('bg-brand-accent')
   })
 
   it('calls onClick when clicked', async () => {
@@ -48,6 +48,6 @@ describe('Button', () => {
     render(<Button className="my-custom-class">Styled</Button>)
     const button = screen.getByRole('button', { name: 'Styled' })
     expect(button.className).toContain('my-custom-class')
-    expect(button.className).toContain('bg-blue-600')
+    expect(button.className).toContain('bg-brand-primary')
   })
 })

@@ -137,24 +137,10 @@ export default function StepConfigDialog({
   const defs = schema.$defs as Record<string, unknown> | undefined
   const properties = getSchemaProperties(schema, defs)
 
-  // ── Resize-step specific: resolve preset dimensions ────────────────
+  // ── Resize-step specific: hide width/height when a named preset is selected ─
   const isResize = step.id === 'resize'
-  const currentPreset = isResize ? String(config.preset ?? '1920x1080') : undefined
-  const isCustomPreset = currentPreset === 'custom'
+  const isCustomPreset = isResize ? String(config.preset ?? '1920x1080') === 'custom' : false
 
-  // Parse a "WIDTHxHEIGHT" preset string → { width, height } or null
-  const presetDimensions = useMemo<{ width: number; height: number } | null>(() => {
-    if (!currentPreset || isCustomPreset) return null
-    const parts = currentPreset.split('x')
-    if (parts.length === 2) {
-      const w = parseInt(parts[0], 10)
-      const h = parseInt(parts[1], 10)
-      if (!isNaN(w) && !isNaN(h)) return { width: w, height: h }
-    }
-    return null
-  }, [currentPreset, isCustomPreset])
-
-  // Filter properties: for resize step hide width/height when a named preset is selected
   const visibleProperties = useMemo(() => {
     if (!isResize) return Object.entries(properties)
     return Object.entries(properties).filter(([key]) => {
@@ -216,33 +202,6 @@ export default function StepConfigDialog({
               {t('stepConfig.noOptions')}
             </p>
           )}
-          {/* Resize step: show read-only dimensions when a named preset is selected */}
-          {isResize && !isCustomPreset && presetDimensions && (
-            <div
-              className="rounded-lg p-3 text-sm space-y-1"
-              style={{
-                border: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--bg-card)',
-                opacity: 0.85,
-              }}
-            >
-              <span className="text-xs font-semibold uppercase tracking-wider"
-                style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-ui)' }}>
-                {t('stepConfig.fields.resize.width.title', { defaultValue: 'Width' })}
-              </span>
-              <p style={{ color: 'var(--text-main)' }}>
-                {presetDimensions.width} px
-              </p>
-              <span className="text-xs font-semibold uppercase tracking-wider mt-2 block"
-                style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-ui)' }}>
-                {t('stepConfig.fields.resize.height.title', { defaultValue: 'Height' })}
-              </span>
-              <p style={{ color: 'var(--text-main)' }}>
-                {presetDimensions.height} px
-              </p>
-            </div>
-          )}
-
           {visibleProperties.map(([key, propSchema]) => (
             <FieldRenderer
               key={key}

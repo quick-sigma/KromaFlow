@@ -16,12 +16,30 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 from fastapi import WebSocket
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+# ── Content-type to file extension mapping (mirrors main.py) ──────────────────
+
+_CONTENT_TYPE_EXT: dict[str, str] = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/avif": ".avif",
+    "image/gif": ".gif",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+    "application/zip": ".zip",
+}
+
+
+def _ext_from_content_type(content_type: str) -> str:
+    return _CONTENT_TYPE_EXT.get(content_type, ".bin")
 
 
 # ── Job status enum ──────────────────────────────────────────────────────────
@@ -313,18 +331,61 @@ class QueueManager:
             # ── Execute pipeline in thread pool to avoid blocking ─────────
             loop = asyncio.get_event_loop()
 
-            def execute() -> tuple[bytes, str]:
+            def execute():
                 return pl.execute(pil_image, configs)
 
-            data, content_type = await loop.run_in_executor(None, execute)
+            pipeline_result = await loop.run_in_executor(None, execute)
+            data, content_type = pipeline_result
 
             job.progress = 80
             await self._broadcast_job_update(job)
 
-            # ── Store result ──────────────────────────────────────────────
-            result_id, display_name = await self._result_callback(
-                job, data, content_type
-            )
+            # ── Determine primary result ──────────────────────────────────
+            # When distribution artifacts exist, the zip becomes the primary
+            # download so the user gets the full set, not just the single image.
+            distributions: dict[str, Any] = {}
+            original_name = job.original_name or "image"
+
+            primary_image_url: str | None = None
+
+            if pipeline_result.distributions:
+                # Use the first distribution zip as the primary result
+                first_dist = next(iter(pipeline_result.distributions.values()))
+                zip_bytes = first_dist.get("zip_bytes")
+                if zip_bytes:
+                    result_id, display_name = await self._result_callback(
+                        job, zip_bytes, "application/zip"
+                    )
+                    # Override display name to be more descriptive
+                    stem = Path(original_name).stem
+                    display_name = f"{stem}-srcset.zip"
+
+                    # ── Also store the primary image for thumbnail display ──
+                    # Use the same callback so both the file on disk and the
+                    # in-memory metadata in main.py are kept in sync.
+                    img_id, _ = await self._result_callback(
+                        job, data, content_type
+                    )
+                    primary_image_url = f"/api/images/{img_id}/download"
+
+                    # Enrich with distribution metadata
+                    distributions[first_dist.get("type", "distribution")] = {
+                        "type": first_dist.get("type", "unknown"),
+                        "format": first_dist.get("format", "png"),
+                        "totalImages": first_dist.get("total_images", 0),
+                        "zipSizeBytes": first_dist.get("zip_size_bytes", len(zip_bytes)),
+                        "htmlSrcset": first_dist.get("html_srcset", ""),
+                        "htmlPicture": first_dist.get("html_picture", ""),
+                        "primaryImageUrl": primary_image_url,
+                    }
+                else:
+                    result_id, display_name = await self._result_callback(
+                        job, data, content_type
+                    )
+            else:
+                result_id, display_name = await self._result_callback(
+                    job, data, content_type
+                )
 
             job.result_id = result_id
             job.result_name = display_name
@@ -334,9 +395,16 @@ class QueueManager:
             self._stats.total_completed += 1
             self._stats.current_job = None
 
+            # Enrich job dict with distribution info for WebSocket broadcast
+            job_dict = job.to_dict()
+            if distributions:
+                job_dict["distributions"] = distributions
+            if primary_image_url:
+                job_dict["primaryImageUrl"] = primary_image_url
+
             await self._broadcast({
                 "type": "job_completed",
-                "job": job.to_dict(),
+                "job": job_dict,
                 "stats": self._stats.to_dict(),
             })
 

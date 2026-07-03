@@ -72,7 +72,8 @@ describe('StepSearch', () => {
     render(<StepSearch onSelect={vi.fn()} onClose={vi.fn()} />)
     expect(await screen.findByText('All')).toBeInTheDocument()
     expect(screen.getByText('Processors')).toBeInTheDocument()
-    expect(screen.getByText('Output')).toBeInTheDocument()
+    // Use getByRole to find the filter pill specifically (avoids duplicate "Output" text)
+    expect(screen.getByRole('radio', { name: 'Output' })).toBeInTheDocument()
   })
 
   it('selects All by default', async () => {
@@ -102,7 +103,7 @@ describe('StepSearch', () => {
     render(<StepSearch onSelect={vi.fn()} onClose={vi.fn()} />)
 
     await screen.findByText('watermark-remover')
-    await user.click(screen.getByText('Output'))
+    await user.click(screen.getByRole('radio', { name: 'Output' }))
 
     // Output formatter should be visible
     expect(screen.getByText('avif-output-formatter')).toBeInTheDocument()

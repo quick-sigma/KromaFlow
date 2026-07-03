@@ -19,10 +19,10 @@ describe('Miniature', () => {
   })
 
   it('applies a rounded and bordered style to the image', () => {
-    render(<Miniature src={testSrc} alt="Styled" />)
+    render(<Miniature src="/test.png" alt="Styled" />)
     const img = screen.getByRole('img', { name: 'Styled' })
     expect(img.className).toContain('rounded')
-    expect(img.className).toContain('border')
+    expect(img.style.border).toBeTruthy()
   })
 
   it('forwards additional props to the img element', () => {

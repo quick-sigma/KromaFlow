@@ -18,15 +18,20 @@ client = TestClient(app)
 def _clean_storage(monkeypatch, tmp_path):
     """Redirect processed-image storage to a temp directory for test isolation.
 
-    Also empties the in-memory metadata dict so tests start clean.
+    Also empties the in-memory metadata dicts so tests start clean.
     """
     storage_dir = tmp_path / "processed"
     storage_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("main.STORAGE_DIR", storage_dir)
     monkeypatch.setattr("main._METADATA_FILE", storage_dir / "metadata.json")
+    monkeypatch.setattr(
+        "main._DISTRIBUTION_METADATA_FILE",
+        storage_dir / "distribution_metadata.json",
+    )
     import main as main_mod
 
     main_mod._processed_metadata.clear()
+    main_mod._distribution_metadata.clear()
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -331,6 +336,90 @@ class TestDeleteProcessedImage:
 
         first = client.delete(f"/api/images/{data['resultId']}")
         assert first.status_code == 204
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ── Distribution tests
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestDistributionEndpoint:
+    """POST /api/images/process with SRCSet distribution step."""
+
+    def test_srcset_distribution_returns_zip(self):
+        """Pipeline with SRCSet distribution returns zip as primary download."""
+        pipeline = [
+            {"step_id": "wm_remover", "config": {}},
+            {"step_id": "avif_fmt", "config": {"quality": 85}},
+            {"step_id": "srcset_dist", "config": {"sizes": [200, 400]}},
+        ]
+        response = _upload(pipeline=pipeline)
+        assert response.status_code == 200
+        data = response.json()
+
+        # Primary download should be a zip, not the AVIF
+        assert data["type"] == "application/zip"
+        assert data["name"].endswith(".zip")
+        assert data["size"] > 0
+        assert "distributions" in data
+        assert "srcset" in data.get("distributions", {}).get("srcset_dist", {}).get("type", "")
+        assert "primaryImage" in data
+        assert data["primaryImage"]["type"] == "image/avif"
+
+    def test_srcset_distribution_download_is_zip(self):
+        """The primary download URL should serve a zip file."""
+        pipeline = [
+            {"step_id": "wm_remover", "config": {}},
+            {"step_id": "avif_fmt", "config": {"quality": 85}},
+            {"step_id": "srcset_dist", "config": {"sizes": [100, 200]}},
+        ]
+        resp = _upload(pipeline=pipeline)
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # Download the primary result
+        dl_resp = client.get(data["downloadUrl"])
+        assert dl_resp.status_code == 200
+        assert dl_resp.headers["content-type"] == "application/zip"
+
+        # Verify it is actually a zip file with images
+        import zipfile
+
+        with zipfile.ZipFile(BytesIO(dl_resp.content)) as zf:
+            names = zf.namelist()
+            assert len(names) > 0
+            # Should contain image files for each size (uses formatter format, e.g. .avif)
+            image_files = [n for n in names if any(n.endswith(ext) for ext in (".png", ".jpg", ".avif", ".webp"))]
+            assert len(image_files) >= 2
+            # Should contain HTML and manifest
+            assert "index.html" in names
+            assert "manifest.json" in names
+
+    def test_srcset_distribution_has_secondary_avif(self):
+        """The primaryImage field should allow downloading the individual AVIF."""
+        pipeline = [
+            {"step_id": "wm_remover", "config": {}},
+            {"step_id": "avif_fmt", "config": {"quality": 85}},
+            {"step_id": "srcset_dist", "config": {"sizes": [100]}},
+        ]
+        resp = _upload(pipeline=pipeline)
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # The secondary image should be downloadable
+        img_url = data["primaryImage"]["downloadUrl"]
+        img_resp = client.get(img_url)
+        assert img_resp.status_code == 200
+        assert img_resp.headers["content-type"] == "image/avif"
+
+    def test_plain_pipeline_no_distribution(self):
+        """Pipeline without distribution should work as before."""
+        response = _upload()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "image/avif"
+        assert "distributions" not in data
+        assert "primaryImage" not in data
 
         second = client.delete(f"/api/images/{data['resultId']}")
         assert second.status_code == 204

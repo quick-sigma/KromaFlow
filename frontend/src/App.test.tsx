@@ -65,4 +65,21 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Process' })).toBeInTheDocument()
   })
+
+  // ── Font system tests ──────────────────────────────────────────────────
+
+  it('renders the FileInput heading with Varela heading font via CSS variable', async () => {
+    render(<App />)
+    await waitForApp()
+    const heading = screen.getByText('Load or drag images')
+    // Inline style sets fontFamily via CSS variable
+    expect(heading.style.fontFamily).toContain('var(--font-heading)')
+  })
+
+  it('renders the supported formats text with Sintony UI font via CSS variable', async () => {
+    render(<App />)
+    await waitForApp()
+    const formats = screen.getByText(/PNG, JPEG/)
+    expect(formats.style.fontFamily).toContain('var(--font-ui)')
+  })
 })

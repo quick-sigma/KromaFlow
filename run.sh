@@ -12,9 +12,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "Iniciando FastAPI en el puerto $API_PORT..."
-source Backend/.venv/bin/activate
-uvicorn Backend.main:app --port "$API_PORT" --reload &
+cd Backend
+source .venv/bin/activate
+uvicorn main:app --port "$API_PORT" --reload &
 API_PID=$!
+cd ..
 
 echo "Iniciando frontend en el puerto $FRONTEND_PORT..."
 cd frontend
