@@ -16,7 +16,8 @@ export type PipelineStep = {
   step: {
     id: string
     name: string
-    variant: 'processor' | 'output_formatter'
+    variant: 'processor' | 'output_formatter' | 'distribution'
+    repeatable?: boolean
   }
   config: Record<string, unknown>
 }

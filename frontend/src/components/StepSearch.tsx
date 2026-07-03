@@ -1,6 +1,8 @@
 /**
  * Floating search bar — a Notion-style command palette for selecting pipeline steps.
  *
+ * Cyber-Amethyst themed with proper typography.
+ *
  * Features:
  * - Overlay with backdrop
  * - Auto-focused search input
@@ -115,12 +117,15 @@ export default function StepSearch({
     }
   }
 
-  // Filter results — apply variant and step ID exclusion
+  // Filter results — apply variant and step ID exclusion.
+  // Repeatable steps are never excluded by ID (they can appear multiple times).
   const visibleSteps = useMemo(() => {
     const variantExclude = new Set(excludeVariants)
     const idExclude = new Set(excludeStepIds)
     return steps.filter(
-      (s) => !variantExclude.has(s.variant) && !idExclude.has(s.id),
+      (s) =>
+        !variantExclude.has(s.variant) &&
+        (s.repeatable || !idExclude.has(s.id)),
     )
   }, [steps, excludeVariants, excludeStepIds])
 
@@ -142,23 +147,27 @@ export default function StepSearch({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] backdrop-blur-sm"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={handleBackdropClick}
       role="dialog"
       aria-label="Search pipeline steps"
     >
       <div
-        className="w-full max-w-lg bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden animate-[fadeIn_150ms_ease-out]"
+        className="w-full max-w-lg rounded-xl shadow-2xl overflow-hidden"
         style={{
+          backgroundColor: 'var(--bg-main)',
+          border: '1px solid var(--border-subtle)',
           animation: 'stepSearchFadeIn 150ms ease-out',
         }}
       >
         {/* ── Loading bar ────────────────────────────────────────────── */}
-        <div className="h-1 bg-gray-700">
+        <div className="h-1" style={{ backgroundColor: 'var(--bg-card)' }}>
           {isLoading && (
             <div
-              className="h-full w-1/4 bg-blue-500 rounded-full"
+              className="h-full w-1/4 rounded-full"
               style={{
+                backgroundColor: 'var(--brand-primary)',
                 animation: 'loading-bar 1.2s ease-in-out infinite',
               }}
             />
@@ -166,9 +175,11 @@ export default function StepSearch({
         </div>
 
         {/* ── Search input ───────────────────────────────────────────── */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-700">
+        <div className="flex items-center gap-3 px-4 py-3 border-b"
+          style={{ borderColor: 'var(--border-subtle)' }}>
           <svg
-            className="w-5 h-5 text-gray-400 shrink-0"
+            className="w-5 h-5 shrink-0"
+            style={{ color: 'var(--text-muted)' }}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -186,25 +197,30 @@ export default function StepSearch({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('stepSearch.placeholder')}
-            className="flex-1 bg-transparent text-white placeholder-gray-500 text-lg outline-none"
+            className="flex-1 bg-transparent text-lg outline-none"
+            style={{ color: 'var(--text-main)', fontFamily: 'var(--font-ui)' }}
             aria-label="Search pipeline steps"
           />
         </div>
 
         {/* ── Error ──────────────────────────────────────────────────── */}
         {error && (
-          <div className="px-4 py-3 text-sm text-red-400 bg-red-900/20">
+          <div className="px-4 py-3 text-sm"
+            style={{ color: 'var(--brand-accent)', backgroundColor: 'rgba(242,95,92,0.1)' }}>
             {error}
           </div>
         )}
 
         {/* ── Pill switch filter ───────────────────────────────────── */}
         <div
-          className="flex justify-center px-4 py-2.5 border-b border-gray-700"
+          className="flex justify-center px-4 py-2.5 border-b"
+          style={{ borderColor: 'var(--border-subtle)' }}
           role="radiogroup"
           aria-label={t('stepSearch.filterLabel')}
         >
-          <div className="inline-flex bg-gray-700 rounded-full p-0.5 gap-0">
+          <div
+            className="inline-flex rounded-full p-0.5 gap-0"
+            style={{ backgroundColor: 'var(--bg-card)' }}>
             {(
               [
                 { value: 'all' as const, label: t('stepSearch.filterAll') },
@@ -217,13 +233,13 @@ export default function StepSearch({
                 role="radio"
                 aria-checked={filter === opt.value}
                 onClick={() => setFilter(opt.value)}
-                className={`
-                  px-5 py-1.5 text-sm font-medium rounded-full transition-all duration-150 cursor-pointer
-                  ${filter === opt.value
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-400 hover:text-white'
-                  }
-                `}
+                className="px-5 py-1.5 text-sm font-medium rounded-full transition-all duration-150 cursor-pointer"
+                style={{
+                  fontFamily: 'var(--font-ui)',
+                  backgroundColor: filter === opt.value ? 'var(--brand-primary)' : 'transparent',
+                  color: filter === opt.value ? '#ffffff' : 'var(--text-muted)',
+                  boxShadow: filter === opt.value ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
+                }}
               >
                 {opt.label}
               </button>
@@ -235,19 +251,24 @@ export default function StepSearch({
         <div className="max-h-80 overflow-y-auto">
           {/* Notice when steps are excluded */}
           {(excludeVariants.length > 0 || excludeStepIds.length > 0) && (
-            <div className="px-4 py-2 text-xs text-amber-400 bg-amber-900/20 border-b border-gray-700/50">
+            <div className="px-4 py-2 text-xs border-b"
+              style={{
+                color: '#eab308',
+                backgroundColor: 'rgba(234,179,8,0.1)',
+                borderColor: 'var(--border-subtle)',
+              }}>
               {t('stepSearch.exclusionNotice')}
             </div>
           )}
 
           {!isLoading && filteredByVariant.length === 0 && query.trim() && (
-            <div className="px-4 py-8 text-center text-gray-500">
+            <div className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
               {t('stepSearch.noMatch', { query })}
             </div>
           )}
 
           {!isLoading && filteredByVariant.length === 0 && !query.trim() && (
-            <div className="px-4 py-8 text-center text-gray-500">
+            <div className="px-4 py-8 text-center" style={{ color: 'var(--text-muted)' }}>
               {filter === 'all' && visibleSteps.length === 0 && steps.length === 0
                 ? t('stepSearch.noSteps')
                 : t('stepSearch.typeToSearch')}
@@ -288,19 +309,50 @@ function StepResultItem({
     <button
       type="button"
       onClick={() => onSelect(step)}
-      className="w-full text-left px-4 py-3 hover:bg-gray-700/60 transition-colors cursor-pointer border-b border-gray-700/50 last:border-b-0 group"
+      className="w-full text-left px-4 py-3 transition-colors cursor-pointer border-b last:border-b-0 group"
+      style={{
+        borderColor: 'var(--border-subtle)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'var(--bg-card)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent'
+      }}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-white font-medium truncate">
+        <span className="font-medium truncate"
+          style={{
+            color: 'var(--text-main)',
+            fontFamily: 'var(--font-heading)',
+            fontSize: '0.95rem',
+          }}>
           {step.name}
         </span>
-        <span className="shrink-0 text-xs font-mono bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">
+        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full"
+          style={{
+            fontFamily: 'var(--font-ui)',
+            backgroundColor: 'var(--bg-card)',
+            color: 'var(--text-muted)',
+          }}>
           v{step.version}
         </span>
       </div>
-      <p className="mt-0.5 text-sm text-gray-400 line-clamp-2">
+      <p className="mt-0.5 text-sm line-clamp-2"
+        style={{
+          color: 'var(--text-muted)',
+          fontFamily: 'var(--font-body)',
+        }}>
         {step.description}
       </p>
+      {/* Step variant label */}
+      <span className="inline-block mt-1 text-[10px] font-medium uppercase tracking-wider"
+        style={{
+          color: step.variant === 'output_formatter' ? 'var(--text-muted)' : 'var(--brand-primary)',
+          fontFamily: 'var(--font-ui)',
+        }}>
+        {step.variant === 'output_formatter' ? 'Output' : 'Processor'}
+      </span>
     </button>
   )
 }

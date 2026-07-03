@@ -12,6 +12,7 @@ from pathlib import Path
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +24,7 @@ from PIL import Image
 import steps_config  # noqa: F401  # register side-effect
 from model_manager import ModelManager
 from settings import Settings
-from step import Pipeline, get_registered_steps, _step_id_map
+from step import Pipeline, PipelineResult, get_registered_steps, _step_id_map
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +284,7 @@ _CONTENT_TYPE_EXT: dict[str, str] = {
     "image/gif": ".gif",
     "image/bmp": ".bmp",
     "image/tiff": ".tiff",
+    "application/zip": ".zip",
 }
 
 
@@ -316,6 +318,36 @@ def _save_metadata(meta: dict[str, dict]) -> None:
 
 # In-memory metadata store backed by the JSON file on disk
 _processed_metadata: dict[str, dict] = _load_metadata()
+
+# Distribution artifact metadata
+_DISTRIBUTION_METADATA_FILE = STORAGE_DIR / "distribution_metadata.json"
+
+
+def _load_distribution_metadata() -> dict[str, dict]:
+    """Load distribution-artifact metadata from disk."""
+    if not _DISTRIBUTION_METADATA_FILE.exists():
+        return {}
+    try:
+        with open(_DISTRIBUTION_METADATA_FILE) as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to load distribution metadata file: %s", exc)
+    return {}
+
+
+def _save_distribution_metadata(meta: dict[str, dict]) -> None:
+    """Persist distribution-artifact metadata to disk."""
+    try:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(_DISTRIBUTION_METADATA_FILE, "w") as f:
+            json.dump(meta, f, indent=2)
+    except OSError as exc:
+        logger.error("Failed to save distribution metadata: %s", exc)
+
+
+_distribution_metadata: dict[str, dict] = _load_distribution_metadata()
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────
@@ -428,7 +460,17 @@ async def process_image_endpoint(
                 detail=f"Invalid config for step {step_id!r}: {exc}",
             )
 
-        configs[step_id] = validated_config
+        # Support repeatable steps: when the same step_id appears multiple
+        # times, store all configs in a list consumed in order by each
+        # step instance in Pipeline.execute().
+        if step_id in configs:
+            existing = configs[step_id]
+            if isinstance(existing, list):
+                existing.append(validated_config)
+            else:
+                configs[step_id] = [existing, validated_config]
+        else:
+            configs[step_id] = validated_config
 
     # ── Build and validate Pipeline ───────────────────────────────────
     try:
@@ -449,9 +491,11 @@ async def process_image_endpoint(
 
     # ── Execute pipeline ──────────────────────────────────────────────
     try:
-        data, content_type = pl.execute(pil_image, configs)
+        pipeline_result = pl.execute(pil_image, configs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+    data, content_type = pipeline_result
 
     # ── Store processed result on disk ─────────────────────────────────
     result_id = str(uuid.uuid4())
@@ -475,13 +519,66 @@ async def process_image_endpoint(
     }
     _save_metadata(_processed_metadata)
 
-    return {
-        "resultId": result_id,
-        "name": display_name,
-        "type": content_type,
-        "size": len(data),
-        "downloadUrl": f"/api/images/{result_id}/download",
-    }
+    # ── Handle distribution artifacts ─────────────────────────────────
+    distributions: dict[str, Any] = {}
+    for dist_step_id, dist_result in pipeline_result.distributions.items():
+        zip_bytes = dist_result.get("zip_bytes")
+        if zip_bytes:
+            dist_id = str(uuid.uuid4())
+            dist_file_path = STORAGE_DIR / f"{dist_id}.zip"
+            dist_file_path.write_bytes(zip_bytes)
+
+            dist_meta = {
+                "distributionId": dist_id,
+                "type": dist_result.get("type", "unknown"),
+                "format": dist_result.get("format", "png"),
+                "quality": dist_result.get("quality"),
+                "totalImages": dist_result.get("total_images", 0),
+                "zipSizeBytes": dist_result.get("zip_size_bytes", len(zip_bytes)),
+                "zipDownloadUrl": f"/api/distributions/{dist_id}/download",
+                "htmlSrcset": dist_result.get("html_srcset", ""),
+                "htmlPicture": dist_result.get("html_picture", ""),
+                "artifacts": dist_result.get("artifacts", []),
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            }
+
+            distributions[dist_step_id] = dist_meta
+
+            # Persist distribution metadata
+            _distribution_metadata[dist_id] = dist_meta
+        _save_distribution_metadata(_distribution_metadata)
+
+    # ── Build response ─────────────────────────────────────────────────
+    # When distribution artifacts exist, the zip becomes the primary
+    # download so the user gets the full set, not just the single image.
+    if distributions:
+        primary_dist = next(iter(distributions.values()))
+        response_data: dict[str, Any] = {
+            "resultId": primary_dist["distributionId"],
+            "name": f"{stem}-srcset.zip",
+            "type": "application/zip",
+            "size": primary_dist["zipSizeBytes"],
+            "downloadUrl": primary_dist["zipDownloadUrl"],
+            "distributions": distributions,
+            # Keep the original encoded image accessible as secondary
+            "primaryImage": {
+                "resultId": result_id,
+                "name": display_name,
+                "type": content_type,
+                "size": len(data),
+                "downloadUrl": f"/api/images/{result_id}/download",
+            },
+        }
+    else:
+        response_data = {
+            "resultId": result_id,
+            "name": display_name,
+            "type": content_type,
+            "size": len(data),
+            "downloadUrl": f"/api/images/{result_id}/download",
+        }
+
+    return response_data
 
 
 @app.get("/api/images/{image_id}/download")
@@ -504,6 +601,33 @@ def download_processed_image(image_id: str):
 
     data = file_path.read_bytes()
     return Response(content=data, media_type=metadata["type"])
+
+
+@app.get("/api/distributions/{distribution_id}/download")
+def download_distribution(distribution_id: str):
+    """Serve a distribution zip file from disk storage.
+
+    The distribution is identified by the ``distributionId`` returned in
+    the ``distributions`` field of the process response.
+    """
+    metadata = _distribution_metadata.get(distribution_id)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail="Distribution not found")
+
+    file_path = STORAGE_DIR / f"{distribution_id}.zip"
+    if not file_path.exists():
+        _distribution_metadata.pop(distribution_id, None)
+        _save_distribution_metadata(_distribution_metadata)
+        raise HTTPException(status_code=404, detail="Distribution file not found on disk")
+
+    data = file_path.read_bytes()
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="srcset-{distribution_id}.zip"',
+        },
+    )
 
 
 @app.delete("/api/images/{image_id}", status_code=204)

@@ -163,6 +163,12 @@ export default function PipelineEditor() {
     [pipelineSteps],
   )
 
+  // Check if there are distribution nodes
+  const hasDistribution = useMemo(
+    () => pipelineSteps.some((ps) => ps.step.variant === 'distribution'),
+    [pipelineSteps],
+  )
+
   // ── Add step ──────────────────────────────────────────────────────
   function handleSelect(step: StepInfo) {
     const defaultConfig = buildDefaultConfig(
@@ -170,8 +176,8 @@ export default function PipelineEditor() {
     )
 
     setPipelineSteps((prev) => {
-      // Block: no duplicate step IDs (same step twice)
-      if (prev.some((ps) => ps.step.id === step.id)) {
+      // Block: no duplicate step IDs (same step twice), unless repeatable
+      if (!step.repeatable && prev.some((ps) => ps.step.id === step.id)) {
         return prev
       }
 
@@ -188,6 +194,14 @@ export default function PipelineEditor() {
         return prev
       }
 
+      // Block: distribution node requires an output formatter
+      if (
+        step.variant === 'distribution' &&
+        !prev.some((ps) => ps.step.variant === 'output_formatter')
+      ) {
+        return prev
+      }
+
       const entry: PipelineStep = { step, config: defaultConfig }
 
       // Base node → always goes at position 0
@@ -195,8 +209,36 @@ export default function PipelineEditor() {
         return [entry, ...prev]
       }
 
-      // Output formatter → always goes at the end
+      // Distribution node → goes after the output formatter
+      if (step.variant === 'distribution') {
+        const formatterIndex = prev.findIndex(
+          (ps) => ps.step.variant === 'output_formatter',
+        )
+        if (formatterIndex !== -1) {
+          // Insert after the formatter (after all existing distribution nodes)
+          const copy = [...prev]
+          // Find the last distribution node to insert after, or use formatter position
+          const lastDistIndex = copy.length - 1
+          const insertAt = lastDistIndex + 1
+          copy.splice(insertAt, 0, entry)
+          return copy
+        }
+        // Shouldn't reach here (blocked above), but just in case:
+        return [...prev, entry]
+      }
+
+      // Output formatter → always goes before distribution nodes
       if (step.variant === 'output_formatter') {
+        // If there are distribution nodes, insert formatter before them
+        const firstDistIndex = prev.findIndex(
+          (ps) => ps.step.variant === 'distribution',
+        )
+        if (firstDistIndex !== -1) {
+          const copy = [...prev]
+          copy.splice(firstDistIndex, 0, entry)
+          return copy
+        }
+        // No distribution nodes → append at the end
         return [...prev, entry]
       }
 
@@ -247,8 +289,14 @@ export default function PipelineEditor() {
         .filter(
           (ps) =>
             !ps.step.is_base_node &&
-            ps.step.variant !== 'output_formatter',
+            ps.step.variant !== 'output_formatter' &&
+            ps.step.variant !== 'distribution',
         )
+        .map((ps) => ps.step.id)
+
+      // Extract distribution order from the user's drag result
+      const distributionOrder = reordered
+        .filter((ps) => ps.step.variant === 'distribution')
         .map((ps) => ps.step.id)
 
       // Rebuild using stable object references from previous state
@@ -256,11 +304,17 @@ export default function PipelineEditor() {
         .map((id) => prevMap.get(id))
         .filter((ps): ps is PipelineStep => ps !== undefined)
 
-      // Assemble constrained pipeline
+      const distributions = distributionOrder
+        .map((id) => prevMap.get(id))
+        .filter((ps): ps is PipelineStep => ps !== undefined)
+
+      // Assemble constrained pipeline:
+      // Base node → Processors → Output formatter → Distribution nodes
       const constrained: PipelineStep[] = []
       if (baseNode) constrained.push(baseNode)
       constrained.push(...processors)
       if (outputNode) constrained.push(outputNode)
+      constrained.push(...distributions)
 
       return constrained
     })
@@ -337,12 +391,25 @@ export default function PipelineEditor() {
 
   // ── Exclude from search — no duplicate variants or IDs ──────────────
   const excludeVariants: StepVariant[] = useMemo(
-    () => (hasFormatter ? ['output_formatter'] : []),
+    () => {
+      const excluded: StepVariant[] = []
+      if (hasFormatter) {
+        excluded.push('output_formatter')
+      }
+      // Distribution nodes require an output formatter to be present
+      if (!hasFormatter) {
+        excluded.push('distribution')
+      }
+      return excluded
+    },
     [hasFormatter],
   )
 
   const excludeStepIds: string[] = useMemo(
-    () => pipelineSteps.map((ps) => ps.step.id),
+    () =>
+      pipelineSteps
+        .filter((ps) => !ps.step.repeatable)
+        .map((ps) => ps.step.id),
     [pipelineSteps],
   )
 

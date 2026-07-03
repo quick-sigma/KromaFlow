@@ -14,11 +14,15 @@ Resolution presets
 Common display / device resolutions are available as a dropdown, plus a
 ``"custom"`` option that lets the user specify arbitrary width and height.
 
+**Note**: this step is marked as **repeatable** — it can appear more than
+once in a pipeline (e.g. resize to an intermediate size first, then to
+the final size).
+
 Resize modes
 ------------
 * **Fit** — scales the image to fit *within* the target dimensions while
-  preserving aspect ratio; leftover space is filled with the background
-  color.
+  preserving aspect ratio; the resulting image may be smaller than the
+  target on one axis.
 * **Fill** — scales the image to *cover* the target dimensions while
   preserving aspect ratio; the overflow is cropped away.
 * **Stretch** — scales the image to the exact target dimensions without
@@ -103,9 +107,6 @@ class ResizeConfig(BaseModel):
     mode : ResizeMode
         How to map the source image onto the target dimensions:
         ``"fit"``, ``"fill"``, or ``"stretch"``.
-    background_color : str
-        Hex colour used to fill padding regions when ``mode == "fit"``
-        (e.g. ``"#000000"`` for black, ``"#FFFFFF"`` for white).
     """
 
     preset: _PresetType = dropdown_field(
@@ -138,16 +139,9 @@ class ResizeConfig(BaseModel):
         ui_type="radiogroup",
         title="Resize Mode",
         description="'Fit' — resize to fit within the target dimensions, "
-        "adding padding if needed.  "
+        "preserving aspect ratio.  "
         "'Fill' — resize to cover the target dimensions, cropping if needed.  "
         "'Stretch' — resize to exactly the target dimensions, ignoring aspect ratio.",
-    )
-
-    background_color: str = Field(
-        default="#000000",
-        title="Background Color",
-        description="Hex color used for padding when mode is 'Fit' "
-        "(e.g. #000000 for black, #FFFFFF for white).",
     )
 
 
@@ -160,7 +154,8 @@ class ResizeProcessor(Processor):
     The processor supports three modes:
 
     * ``"fit"`` — scale to fit *within* the target box, preserving aspect
-      ratio; add padding with the configured background colour.
+      ratio.  The returned image may be smaller than the target on one
+      axis (no padding is added).
     * ``"fill"`` — scale to *cover* the target box, preserving aspect
       ratio; crop the overflow.
     * ``"stretch"`` — scale to the exact target dimensions (ignores aspect
@@ -206,7 +201,7 @@ class ResizeProcessor(Processor):
             return self._fill(image, width, height)
 
         # mode == "fit"
-        return self._fit(image, width, height, cfg.background_color)
+        return self._fit(image, width, height)
 
     # ── Mode implementations ───────────────────────────────────────────────
 
@@ -245,58 +240,22 @@ class ResizeProcessor(Processor):
         image: PILImage.Image,
         width: int,
         height: int,
-        background_color: str = "#000000",
     ) -> PILImage.Image:
-        """Resize to fit within the target box, adding padding."""
+        """Resize to fit within the target box, preserving aspect ratio.
+
+        The image is scaled so that it fits *entirely* inside the target
+        dimensions — it may be smaller than the target on one axis.
+        Unlike ``_fill`` and ``_stretch``, no padding or cropping is
+        applied.
+
+        Both upscaling and downscaling are supported.
+        """
         img = image.copy()
-        # Scale down preserving aspect ratio so it fits inside the box
-        img.thumbnail((width, height), PILImage.Resampling.LANCZOS)
-
-        # Parse background colour
-        bg = _parse_hex_color(background_color)
-
-        # Determine output mode: RGBA source → keep alpha channel
-        has_alpha = img.mode in ("RGBA", "LA", "PA")
-        out_mode = "RGBA" if (has_alpha and img.mode == "RGBA") else "RGB"
-        canvas = PILImage.new(out_mode, (width, height), bg)
-
-        # Centre the resized image on the canvas
-        paste_x = (width - img.width) // 2
-        paste_y = (height - img.height) // 2
-
-        if img.mode == "RGBA":
-            canvas.paste(img, (paste_x, paste_y), img)
-        elif img.mode == "RGB":
-            canvas.paste(img, (paste_x, paste_y))
-        else:
-            # Convert other modes (e.g. P, L) to RGBA for paste
-            img_rgba = img.convert("RGBA")
-            canvas.paste(img_rgba, (paste_x, paste_y), img_rgba)
-
-        return canvas
-
-
-# ── Colour parsing helper ───────────────────────────────────────────────────
-
-
-def _parse_hex_color(hex_color: str) -> tuple[int, int, int]:
-    """Parse a hex colour string into an ``(R, G, B)`` tuple.
-
-    Accepts ``"#RRGGBB"`` and ``"RRGGBB"`` formats.
-    Raises :exc:`ValueError` for invalid values.
-    """
-    h = hex_color.lstrip("#")
-    if len(h) != 6:
-        raise ValueError(
-            f"Invalid hex colour {hex_color!r}. "
-            f"Expected 6-digit hex (e.g. #000000)."
-        )
-    try:
-        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
-    except ValueError as exc:
-        raise ValueError(
-            f"Invalid hex colour {hex_color!r}: {exc}"
-        ) from exc
+        src_w, src_h = img.size
+        scale = min(width / src_w, height / src_h)
+        new_w = round(src_w * scale)
+        new_h = round(src_h * scale)
+        return img.resize((new_w, new_h), PILImage.Resampling.LANCZOS)
 
 
 # ── Step wrapper ────────────────────────────────────────────────────────────
@@ -315,7 +274,9 @@ def _parse_hex_color(hex_color: str) -> tuple[int, int, int]:
 class ResizeStep(Step[ResizeConfig]):
     """Pipeline step that wraps :class:`ResizeProcessor`.
 
-    This step is available unconditionally (pure Pillow dependency).
+    This step is available unconditionally (pure Pillow dependency) and is
+    **repeatable** — it can appear multiple times in the same pipeline
+    (e.g. first shrink to an intermediate size, then to the final size).
 
     Examples
     --------
@@ -343,4 +304,5 @@ class ResizeStep(Step[ResizeConfig]):
             ),
             version="1.0.0",
             config_schema=ResizeConfig,
+            repeatable=True,
         )

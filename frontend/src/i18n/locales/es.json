@@ -83,11 +83,7 @@
         },
         "mode": {
           "title": "Modo de Redimensión",
-          "description": "'Ajustar' — redimensiona para que quepa dentro de las dimensiones objetivo, añadiendo relleno si es necesario. 'Cubrir' — redimensiona para cubrir las dimensiones objetivo, recortando si es necesario. 'Estirar' — redimensiona exactamente a las dimensiones objetivo, ignorando la relación de aspecto."
-        },
-        "background_color": {
-          "title": "Color de Fondo",
-          "description": "Color hexadecimal usado para el relleno cuando el modo es 'Ajustar' (ej. #000000 para negro, #FFFFFF para blanco)."
+          "description": "'Ajustar' — redimensiona para que quepa dentro de las dimensiones objetivo, preservando la relación de aspecto. 'Cubrir' — redimensiona para cubrir las dimensiones objetivo, recortando si es necesario. 'Estirar' — redimensiona exactamente a las dimensiones objetivo, ignorando la relación de aspecto."
         }
       }
     }

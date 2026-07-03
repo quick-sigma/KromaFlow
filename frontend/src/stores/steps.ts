@@ -12,7 +12,7 @@ import { syncEngine } from './sync-engine'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type StepVariant = 'processor' | 'output_formatter'
+export type StepVariant = 'processor' | 'output_formatter' | 'distribution'
 
 export type StepInfo = {
   id: string
@@ -21,6 +21,9 @@ export type StepInfo = {
   version: string
   variant: StepVariant
   config_schema: Record<string, unknown>
+  is_base_node?: boolean
+  /** If true, this step can appear multiple times in the pipeline. */
+  repeatable?: boolean
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
