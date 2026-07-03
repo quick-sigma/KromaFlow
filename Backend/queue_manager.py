@@ -358,7 +358,8 @@ class QueueManager:
                     )
                     # Override display name to be more descriptive
                     stem = Path(original_name).stem
-                    display_name = f"{stem}-srcset.zip"
+                    suffix = first_dist.get("output_suffix", "dist")
+                    display_name = f"{stem}-{suffix}.zip"
 
                     # ── Also store the primary image for thumbnail display ──
                     # Use the same callback so both the file on disk and the
@@ -376,6 +377,7 @@ class QueueManager:
                         "zipSizeBytes": first_dist.get("zip_size_bytes", len(zip_bytes)),
                         "htmlSrcset": first_dist.get("html_srcset", ""),
                         "htmlPicture": first_dist.get("html_picture", ""),
+                        "outputSuffix": first_dist.get("output_suffix", "dist"),
                         "primaryImageUrl": primary_image_url,
                     }
                 else:

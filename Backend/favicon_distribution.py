@@ -101,13 +101,20 @@ class FaviconDistributionNode(DistributionNode):
     """Generates a set of favicon images from a processed image.
 
     The source image is resized to each configured size (as a square),
-    encoded as PNG, and packaged into a zip archive together with an
-    HTML snippet (``<link>`` tags) and a ``site.webmanifest``.
+    encoded in the requested output format, and packaged into a zip
+    archive together with an HTML snippet (``<link>`` tags) and a
+    ``site.webmanifest``.
     """
 
+    # Map of image format → MIME type
     _FORMAT_MIME: dict[str, str] = {
         "png": "image/png",
         "ico": "image/x-icon",
+        "jpeg": "image/jpeg",
+        "jpg": "image/jpeg",
+        "webp": "image/webp",
+        "avif": "image/avif",
+        "gif": "image/gif",
     }
 
     def distribute(
@@ -124,9 +131,10 @@ class FaviconDistributionNode(DistributionNode):
         image : PIL.Image.Image
             The processed image to resize.
         output_format : str
-            Ignored — favicons are always generated as PNG.
+            Target format for each variant (e.g. ``"png"``, ``"ico"``,
+            ``"jpeg"``, ``"avif"``).
         quality : int | None
-            Ignored — PNG is lossless.
+            Compression quality for lossy formats (1-100).
         config : FaviconDistributionConfig | None
             Validated step configuration.  If ``None`` uses defaults.
 
@@ -148,6 +156,11 @@ class FaviconDistributionNode(DistributionNode):
             else FaviconDistributionConfig()
         )
         sizes = sorted(set(cfg.sizes))
+        fmt = output_format or "png"
+        quality_val = quality if quality is not None else 85
+
+        # Resolve format for PIL and extension
+        pil_format, ext = self._resolve_format(fmt)
 
         # Build zip in memory
         buf = io.BytesIO()
@@ -156,19 +169,23 @@ class FaviconDistributionNode(DistributionNode):
         with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             for size in sizes:
                 resized = self._resize_to_square(image, size)
+                prepared = self._prepare_for_format(resized, pil_format)
                 img_bytes = io.BytesIO()
-                resized.save(img_bytes, format="PNG")
+                save_kwargs: dict = {}
+                if pil_format in ("JPEG", "WEBP", "AVIF"):
+                    save_kwargs["quality"] = quality_val
+                prepared.save(img_bytes, format=pil_format, **save_kwargs)
                 img_bytes.seek(0)
                 data = img_bytes.read()
 
-                filename = self._make_filename(size, cfg.naming_convention)
+                filename = self._make_filename(size, cfg.naming_convention, ext)
                 zf.writestr(filename, data)
 
                 artifacts.append({
                     "size": size,
                     "filename": filename,
                     "size_bytes": len(data),
-                    "mime_type": "image/png",
+                    "mime_type": self._FORMAT_MIME.get(fmt, "application/octet-stream"),
                 })
 
             # Write HTML snippet with favicon <link> tags
@@ -195,10 +212,31 @@ class FaviconDistributionNode(DistributionNode):
             "html_links": html_links,
             "webmanifest": webmanifest_str,
             "mime_type": "application/zip",
+            "format": fmt,
+            "quality": quality_val,
             "total_icons": len(artifacts),
+            "output_suffix": "favicon",
         }
 
     # ── Internal helpers ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _prepare_for_format(
+        image: PILImage.Image, pil_format: str
+    ) -> PILImage.Image:
+        """Convert image mode to be compatible with the target PIL format.
+
+        JPEG does not support alpha transparency, so RGBA images are
+        composited over a white background.  All other formats (PNG,
+        WEBP, AVIF, ICO, GIF) handle RGBA natively.
+        """
+        if pil_format == "JPEG" and image.mode == "RGBA":
+            background = PILImage.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[3])
+            return background
+        if pil_format == "JPEG" and image.mode not in ("RGB", "L"):
+            return image.convert("RGB")
+        return image
 
     @staticmethod
     def _resize_to_square(image: PILImage.Image, size: int) -> PILImage.Image:
@@ -225,14 +263,31 @@ class FaviconDistributionNode(DistributionNode):
         return img.crop((left, top, left + size, top + size))
 
     @staticmethod
-    def _make_filename(size: int, convention: str) -> str:
+    def _resolve_format(fmt: str) -> tuple[str, str]:
+        """Return ``(pil_format, file_extension)`` for the given format string."""
+        fmt = fmt.lower().strip()
+        ext_map = {
+            "png": ("PNG", ".png"),
+            "jpeg": ("JPEG", ".jpg"),
+            "jpg": ("JPEG", ".jpg"),
+            "webp": ("WEBP", ".webp"),
+            "avif": ("AVIF", ".avif"),
+            "ico": ("ICO", ".ico"),
+            "gif": ("GIF", ".gif"),
+        }
+        if fmt in ext_map:
+            return ext_map[fmt]
+        logger.warning("Unknown format %r, falling back to PNG", fmt)
+        return "PNG", ".png"
+
+    @staticmethod
+    def _make_filename(size: int, convention: str, ext: str) -> str:
         """Build a filename for a favicon variant."""
         if convention == "label":
             label = FAVICON_SIZE_LABELS.get(size, f"icon-{size}")
-            ext = ".ico" if size == 16 else ".png"
             return f"{label}{ext}"
         # "size" convention (default)
-        return f"favicon-{size}x{size}.png"
+        return f"favicon-{size}x{size}{ext}"
 
     @staticmethod
     def _generate_link_tags(artifacts: list[dict]) -> str:
@@ -244,11 +299,12 @@ class FaviconDistributionNode(DistributionNode):
         for a in artifacts:
             size = a["size"]
             filename = a["filename"]
+            mime = a["mime_type"]
 
-            if filename.endswith(".ico"):
+            if mime == "image/x-icon":
                 # Traditional favicon.ico
                 lines.append(
-                    f'  <link rel="icon" type="image/x-icon" '
+                    f'  <link rel="icon" type="{mime}" '
                     f'href="{filename}" sizes="{size}x{size}">'
                 )
             elif size == 180:
@@ -258,9 +314,9 @@ class FaviconDistributionNode(DistributionNode):
                     f'href="{filename}" sizes="{size}x{size}">'
                 )
             else:
-                # Standard PNG favicon
+                # Generic favicon
                 lines.append(
-                    f'  <link rel="icon" type="image/png" '
+                    f'  <link rel="icon" type="{mime}" '
                     f'href="{filename}" sizes="{size}x{size}">'
                 )
 
@@ -331,11 +387,11 @@ class FaviconDistributionNode(DistributionNode):
         """Generate a ``site.webmanifest`` for PWA compliance."""
         icons = []
         for a in artifacts:
-            if not a["filename"].endswith(".ico"):
+            if a["mime_type"] != "image/x-icon":
                 icons.append({
                     "src": a["filename"],
                     "sizes": f"{a['size']}x{a['size']}",
-                    "type": "image/png",
+                    "type": a["mime_type"],
                 })
         return {
             "name": "Favicon Set",

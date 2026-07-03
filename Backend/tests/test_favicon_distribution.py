@@ -87,6 +87,9 @@ class TestFaviconDistributionNode:
         assert isinstance(result, dict)
         assert result["type"] == "favicon"
         assert result["mime_type"] == "application/zip"
+        assert "format" in result
+        assert result["format"] == "png"
+        assert result["output_suffix"] == "favicon"
 
     def test_default_sizes_generated(self, dist_node, sample_image):
         result = dist_node.distribute(sample_image, "png")
@@ -183,7 +186,7 @@ class TestFaviconDistributionNode:
         result = dist_node.distribute(sample_image, "png", config=config)
         assert len(result["artifacts"]) == 2
 
-    def test_filename_convention_size(self, dist_node, sample_image):
+    def test_filename_convention_size_png(self, dist_node, sample_image):
         config = FaviconDistributionConfig(
             sizes=[32, 64], naming_convention="size"
         )
@@ -192,22 +195,55 @@ class TestFaviconDistributionNode:
         assert "favicon-32x32.png" in filenames
         assert "favicon-64x64.png" in filenames
 
-    def test_filename_convention_label(self, dist_node, sample_image):
+    def test_filename_convention_size_ico(self, dist_node, sample_image):
+        config = FaviconDistributionConfig(
+            sizes=[32, 64], naming_convention="size"
+        )
+        result = dist_node.distribute(sample_image, "ico", config=config)
+        filenames = [a["filename"] for a in result["artifacts"]]
+        assert "favicon-32x32.ico" in filenames
+        assert "favicon-64x64.ico" in filenames
+
+    def test_filename_convention_label_png(self, dist_node, sample_image):
         config = FaviconDistributionConfig(
             sizes=[16, 32, 180], naming_convention="label"
         )
         result = dist_node.distribute(sample_image, "png", config=config)
         filenames = [a["filename"] for a in result["artifacts"]]
-        assert "favicon.ico" in filenames  # size 16 → .ico
+        assert "favicon.png" in filenames  # size 16 → favicon.png (not .ico)
         assert "favicon-32.png" in filenames
         assert "apple-touch-icon.png" in filenames  # size 180
+
+    def test_filename_convention_label_ico(self, dist_node, sample_image):
+        config = FaviconDistributionConfig(
+            sizes=[16, 32, 180], naming_convention="label"
+        )
+        result = dist_node.distribute(sample_image, "ico", config=config)
+        filenames = [a["filename"] for a in result["artifacts"]]
+        assert "favicon.ico" in filenames  # size 16 → favicon.ico
+        assert "favicon-32.ico" in filenames
+        assert "apple-touch-icon.ico" in filenames  # size 180
 
     def test_mime_type_in_result(self, dist_node, sample_image):
         result = dist_node.distribute(sample_image, "png")
         assert result["mime_type"] == "application/zip"
 
-    def test_webmanifest_only_png_icons(self, dist_node, sample_image):
-        """site.webmanifest should only include PNG icons (not .ico)."""
+    def test_format_resolution(self, dist_node, sample_image):
+        """Test different output formats produce correct extensions and MIME types."""
+        for fmt, expected_ext, expected_mime in [
+            ("png", ".png", "image/png"),
+            ("ico", ".ico", "image/x-icon"),
+            ("jpeg", ".jpg", "image/jpeg"),
+            ("webp", ".webp", "image/webp"),
+        ]:
+            config = FaviconDistributionConfig(sizes=[32])
+            result = dist_node.distribute(sample_image, fmt, config=config)
+            assert result["format"] == fmt
+            assert result["artifacts"][0]["filename"].endswith(expected_ext)
+            assert result["artifacts"][0]["mime_type"] == expected_mime
+
+    def test_webmanifest_excludes_ico(self, dist_node, sample_image):
+        """site.webmanifest should only include icons that are NOT .ico."""
         config = FaviconDistributionConfig(
             sizes=[16, 32], naming_convention="size"
         )
@@ -215,6 +251,18 @@ class TestFaviconDistributionNode:
         manifest = json.loads(result["webmanifest"])
         for icon in manifest["icons"]:
             assert icon["type"] == "image/png"
+            assert not icon["src"].endswith(".ico")
+
+    def test_webmanifest_excludes_ico_when_output_is_ico(self, dist_node, sample_image):
+        """When output format is ICO, webmanifest should exclude x-icon mime types."""
+        config = FaviconDistributionConfig(
+            sizes=[16, 32], naming_convention="size"
+        )
+        result = dist_node.distribute(sample_image, "ico", config=config)
+        manifest = json.loads(result["webmanifest"])
+        for icon in manifest["icons"]:
+            assert icon["type"] == "image/png"  # not "image/x-icon"
+            assert not icon["src"].endswith(".ico")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

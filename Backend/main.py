@@ -539,6 +539,7 @@ async def process_image_endpoint(
                 "htmlSrcset": dist_result.get("html_srcset", ""),
                 "htmlPicture": dist_result.get("html_picture", ""),
                 "artifacts": dist_result.get("artifacts", []),
+                "outputSuffix": dist_result.get("output_suffix", "dist"),
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -553,9 +554,10 @@ async def process_image_endpoint(
     # download so the user gets the full set, not just the single image.
     if distributions:
         primary_dist = next(iter(distributions.values()))
+        suffix = primary_dist.get("outputSuffix", "dist")
         response_data: dict[str, Any] = {
             "resultId": primary_dist["distributionId"],
-            "name": f"{stem}-srcset.zip",
+            "name": f"{stem}-{suffix}.zip",
             "type": "application/zip",
             "size": primary_dist["zipSizeBytes"],
             "downloadUrl": primary_dist["zipDownloadUrl"],
