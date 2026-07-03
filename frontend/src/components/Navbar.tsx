@@ -12,13 +12,13 @@ export default function Navbar({ onOpenSettings }: NavbarProps) {
 
   return (
     <nav
-      className="w-full flex items-center justify-between px-6 py-2 shrink-0 select-none"
+      className="w-full relative flex items-center justify-center px-8 py-4 shrink-0 select-none"
       style={{
         backgroundColor: 'var(--bg-main)',
         borderBottom: '1px solid var(--border-subtle)',
       }}
     >
-      {/* ── Brand: icon + tipografia ─────────────────────────────────── */}
+      {/* ── Brand: icon + tipografia (centrado) ──────────────────────── */}
       <div className="flex items-center gap-3">
         <img
           src={iconUrl}
@@ -37,7 +37,7 @@ export default function Navbar({ onOpenSettings }: NavbarProps) {
       </div>
 
       {/* ── Right: language switcher + settings ─────────────────────── */}
-      <div className="flex items-center gap-1">
+      <div className="absolute right-8 flex items-center gap-1">
         <button
           type="button"
           onClick={() =>
