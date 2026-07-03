@@ -426,7 +426,7 @@ export default function PipelineEditor() {
 
   return (
     <div
-      className="w-80 shrink-0 flex flex-col max-h-screen overflow-x-hidden"
+      className="w-80 shrink-0 flex flex-col max-h-full overflow-hidden"
       style={{
         backgroundColor: 'var(--bg-main)',
         borderRight: '1px solid var(--border-subtle)',

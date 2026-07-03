@@ -128,7 +128,7 @@ function App() {
 
   return (
     <div
-      className="min-h-screen flex flex-col text-white"
+      className="min-h-screen flex flex-col text-white overflow-hidden"
       style={{ backgroundColor: 'var(--bg-main)' }}
     >
       <Navbar onOpenSettings={() => setSettingsOpen(true)} />
@@ -137,7 +137,7 @@ function App() {
         <PipelineEditor />
 
         {/* ── Image area with processing bar at the bottom ──────────── */}
-        <div className="flex-1 flex flex-col min-h-screen">
+        <div className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 flex flex-col gap-6 p-6 overflow-y-auto">
             <FileInput onChange={handleFileChange} />
             <MiniatureList />
