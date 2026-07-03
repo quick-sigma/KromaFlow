@@ -71,6 +71,17 @@ except ImportError as exc:
         "SRCSet Distribution step not available: %s", exc
     )
 
+# Import Favicon distribution step to trigger @register decorator.
+# Available unconditionally (pure Pillow dependency).
+try:
+    import favicon_distribution  # noqa: F401  # register side-effect
+except ImportError as exc:
+    import logging
+
+    logging.getLogger(__name__).warning(
+        "Favicon Distribution step not available: %s", exc
+    )
+
 # Import Resize step to trigger @register decorator.
 # Available unconditionally (pure Pillow dependency).
 try:
