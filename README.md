@@ -86,7 +86,7 @@ Whether you're a developer automating asset pipelines or a designer needing cons
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-org/kromaflow.git
+git clone https://github.com/quick-sigma/KromaFlow.git
 cd kromaflow
 
 # Backend
@@ -221,6 +221,6 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 <p align="center">
   Built with ❤️ using React, FastAPI, and PyTorch
   <br />
-  <a href="https://github.com/your-org/kromaflow/issues">Report Bug</a> ·
-  <a href="https://github.com/your-org/kromaflow/issues">Request Feature</a>
+<a href="https://github.com/quick-sigma/KromaFlow/issues">Report Bug</a> ·
+<a href="https://github.com/quick-sigma/KromaFlow/issues">Request Feature</a>
 </p>
