@@ -67,6 +67,28 @@
           "title": "Denoise",
           "description": "Apply denoising to reduce noise and compression artifacts. May soften fine details."
         }
+      },
+      "resize": {
+        "preset": {
+          "title": "Preset Resolution",
+          "description": "Select a common resolution preset, or choose 'Custom' to set your own width and height."
+        },
+        "width": {
+          "title": "Width",
+          "description": "Target width in pixels (used when preset is 'Custom')."
+        },
+        "height": {
+          "title": "Height",
+          "description": "Target height in pixels (used when preset is 'Custom')."
+        },
+        "mode": {
+          "title": "Resize Mode",
+          "description": "'Fit' — resize to fit within the target dimensions, adding padding if needed. 'Fill' — resize to cover the target dimensions, cropping if needed. 'Stretch' — resize to exactly the target dimensions, ignoring aspect ratio."
+        },
+        "background_color": {
+          "title": "Background Color",
+          "description": "Hex color used for padding when mode is 'Fit' (e.g. #000000 for black, #FFFFFF for white)."
+        }
       }
     }
   },

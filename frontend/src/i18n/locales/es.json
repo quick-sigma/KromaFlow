@@ -67,6 +67,28 @@
           "title": "Reducción de Ruido",
           "description": "Aplica reducción de ruido para disminuir artefactos de compresión. Puede suavizar detalles finos."
         }
+      },
+      "resize": {
+        "preset": {
+          "title": "Resolución Predefinida",
+          "description": "Selecciona una resolución predefinida común, o elige 'Personalizada' para definir tu propio ancho y alto."
+        },
+        "width": {
+          "title": "Ancho",
+          "description": "Ancho objetivo en píxeles (se usa cuando la resolución es 'Personalizada')."
+        },
+        "height": {
+          "title": "Alto",
+          "description": "Alto objetivo en píxeles (se usa cuando la resolución es 'Personalizada')."
+        },
+        "mode": {
+          "title": "Modo de Redimensión",
+          "description": "'Ajustar' — redimensiona para que quepa dentro de las dimensiones objetivo, añadiendo relleno si es necesario. 'Cubrir' — redimensiona para cubrir las dimensiones objetivo, recortando si es necesario. 'Estirar' — redimensiona exactamente a las dimensiones objetivo, ignorando la relación de aspecto."
+        },
+        "background_color": {
+          "title": "Color de Fondo",
+          "description": "Color hexadecimal usado para el relleno cuando el modo es 'Ajustar' (ej. #000000 para negro, #FFFFFF para blanco)."
+        }
       }
     }
   },
