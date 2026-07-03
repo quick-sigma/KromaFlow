@@ -82,6 +82,17 @@ except ImportError as exc:
         "Resize step not available: %s", exc
     )
 
+# Import PNG, JPEG, ICO output formatters to trigger @register decorator.
+# Available unconditionally (pure Pillow dependency).
+try:
+    import image_formatters  # noqa: F401  # register side-effect
+except ImportError as exc:
+    import logging
+
+    logging.getLogger(__name__).warning(
+        "Image formatters (PNG, JPEG, ICO) not available: %s", exc
+    )
+
 
 # ── Configuration schemas ───────────────────────────────────────────────────
 

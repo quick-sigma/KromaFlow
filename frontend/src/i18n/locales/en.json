@@ -68,6 +68,18 @@
           "description": "Apply denoising to reduce noise and compression artifacts. May soften fine details."
         }
       },
+      "png_fmt": {
+        "quality": {
+          "title": "Compression Level",
+          "description": "PNG compression level (1 = fastest/largest, 9 = slowest/smallest)"
+        }
+      },
+      "jpeg_fmt": {
+        "quality": {
+          "title": "Quality",
+          "description": "Compression quality (1 = lowest, 100 = highest)"
+        }
+      },
       "resize": {
         "preset": {
           "title": "Preset Resolution",

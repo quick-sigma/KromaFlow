@@ -68,6 +68,18 @@
           "description": "Aplica reducción de ruido para disminuir artefactos de compresión. Puede suavizar detalles finos."
         }
       },
+      "png_fmt": {
+        "quality": {
+          "title": "Nivel de Compresión",
+          "description": "Nivel de compresión PNG (1 = más rápido/más grande, 9 = más lento/más pequeño)"
+        }
+      },
+      "jpeg_fmt": {
+        "quality": {
+          "title": "Calidad",
+          "description": "Calidad de compresión (1 = más baja, 100 = más alta)"
+        }
+      },
       "resize": {
         "preset": {
           "title": "Resolución Predefinida",

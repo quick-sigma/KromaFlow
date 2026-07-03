@@ -542,4 +542,8 @@ class TestIntegration:
         ]
         for info in formatter_infos:
             props = info.config_schema.get("properties", {})
-            assert "quality" in props, f"{info.name} missing 'quality' in schema"
+            # Some formatters (e.g., ICO) are lossless and have no quality field
+            if props:
+                assert "quality" in props, (
+                    f"{info.name} has properties but missing 'quality' in schema"
+                )
