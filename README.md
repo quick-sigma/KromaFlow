@@ -28,9 +28,9 @@
       <td align="center"><strong>Batch Processing</strong></td>
     </tr>
     <tr>
-      <td><video src="video/WallpaperUpscalingDemo.mp4" controls width="100%"></video></td>
-      <td><video src="video/IconProcessingDemo.mp4" controls width="100%"></video></td>
-      <td><video src="video/BatchProcessingDemo.mp4" controls width="100%"></video></td>
+      <td><video src="https://raw.githubusercontent.com/quick-sigma/KromaFlow/main/video/WallpaperUpscalingDemo.mp4" controls width="100%"></video></td>
+      <td><video src="https://raw.githubusercontent.com/quick-sigma/KromaFlow/main/video/IconProcessingDemo.mp4" controls width="100%"></video></td>
+      <td><video src="https://raw.githubusercontent.com/quick-sigma/KromaFlow/main/video/BatchProcessingDemo.mp4" controls width="100%"></video></td>
     </tr>
   </table>
 </p>
