@@ -18,6 +18,25 @@
 
 ---
 
+## 🎬 Demos
+
+<p align="center">
+  <table>
+    <tr>
+      <td align="center"><strong>Wallpaper Upscaling</strong></td>
+      <td align="center"><strong>Icon Processing</strong></td>
+      <td align="center"><strong>Batch Processing</strong></td>
+    </tr>
+    <tr>
+      <td><video src="video/WallpaperUpscalingDemo.mp4" controls width="100%"></video></td>
+      <td><video src="video/IconProcessingDemo.mp4" controls width="100%"></video></td>
+      <td><video src="video/BatchProcessingDemo.mp4" controls width="100%"></video></td>
+    </tr>
+  </table>
+</p>
+
+---
+
 ## 📖 Installation instructions
 
 > 🧭 **Looking for a step-by-step setup guide?**  
